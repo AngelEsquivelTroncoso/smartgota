@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SmartGota — Constructor de vivienda</title>
+    <link rel="stylesheet" href="styles.css?v=13" />
+  </head>
+  <body>
+    <header>
+      <h1>SmartGota: construye tu vivienda</h1>
+      <p>
+        Crea tus pisos, añade habitaciones y estíralas desde la esquina: encajan
+        por celdas, sin huecos. Doble clic en un nombre lo renombra; clic en un
+        dispositivo ajusta su modalidad y frecuencia de uso; para quitarlo,
+        doble clic o arrástralo a la papelera. Con el dedo: toca un dispositivo
+        del catálogo y luego una habitación.
+      </p>
+    </header>
+
+    <main class="app">
+      <aside class="tarjeta col-disp">
+        <h2>Dispositivos</h2>
+        <div id="paleta"></div>
+      </aside>
+
+      <section class="tarjeta col-plano">
+        <h2>Plano de la vivienda</h2>
+        <div class="tabs">
+          <div id="tabs" role="tablist"></div>
+          <button class="tab tab-nuevo" id="btn-piso" type="button">
+            + Añadir piso
+          </button>
+        </div>
+        <div id="plano"></div>
+        <button class="nueva" id="btn-sala" type="button">
+          + Añadir habitación
+        </button>
+      </section>
+
+      <section class="tarjeta sim" aria-labelledby="sim-titulo">
+        <h2 id="sim-titulo">Simulación en tiempo real</h2>
+        <div class="sim__cuerpo">
+          <div class="tanque tanque--sim" id="sim-tanque">
+            <div class="agua" id="sim-agua"></div>
+            <div class="zona-riesgo"></div>
+            <div class="marca-oms marca-limite">
+              <span>Límite 20 %</span>
+            </div>
+            <div class="tanque__texto">
+              <span id="sim-pct">100%</span>
+              <small id="sim-litros"></small>
+            </div>
+          </div>
+
+          <div class="sim__panel">
+            <div class="sim__ajustes">
+              <div>
+                <label for="sim-red">Agua de la red (SIMAS)</label>
+                <select id="sim-red"></select>
+              </div>
+              <div>
+                <label for="sim-patron">Patrón de consumo</label>
+                <select id="sim-patron">
+                  <option value="realista" selected>
+                    Realista (horas pico)
+                  </option>
+                  <option value="continuo">Continuo (parejo 24 h)</option>
+                </select>
+              </div>
+              <div>
+                <label for="sim-vel">Velocidad de la simulación</label>
+                <select id="sim-vel">
+                  <option value="1">Tiempo real (1×)</option>
+                  <option value="60">1 min = 1 s (60×)</option>
+                  <option value="600">10 min = 1 s (600×)</option>
+                  <option value="3600" selected>1 h = 1 s (3600×)</option>
+                  <option value="21600">6 h = 1 s (21600×)</option>
+                </select>
+              </div>
+              <div class="sim__controles">
+                <button
+                  class="btn-sim btn-sim--principal"
+                  id="sim-play"
+                  type="button"
+                >
+                  ▶ Iniciar
+                </button>
+                <button
+                  class="btn-sim btn-sim--sec"
+                  id="sim-reset"
+                  type="button"
+                >
+                  ↺ Rellenar tanque
+                </button>
+              </div>
+            </div>
+
+            <div class="metricas">
+              <div class="mini">
+                <strong id="sim-m-nivel">0 L</strong><span>Nivel actual</span>
+              </div>
+              <div class="mini">
+                <strong id="sim-m-consumo">0 L/min</strong
+                ><span>Consumo de la casa</span>
+              </div>
+              <div class="mini">
+                <strong id="sim-m-entrada">0 L/min</strong
+                ><span>Entrada de la red</span>
+              </div>
+              <div class="mini">
+                <strong id="sim-m-balance">0 L/min</strong
+                ><span>Balance del tanque</span>
+              </div>
+              <div class="mini">
+                <strong id="sim-m-tiempo">Día 1 · 00:00</strong
+                ><span id="sim-m-franja">Tiempo simulado</span>
+              </div>
+              <div class="mini">
+                <strong id="sim-m-lleno">—</strong><span>Lleno en</span>
+              </div>
+              <div class="mini">
+                <strong id="sim-m-limite">—</strong
+                ><span>Llega al 20 % en</span>
+              </div>
+              <div class="mini">
+                <strong id="sim-m-vacio">—</strong><span>Vacío en</span>
+              </div>
+            </div>
+
+            <div
+              class="alerta"
+              id="sim-alerta"
+              role="status"
+              aria-live="polite"
+            ></div>
+            <p class="sim__nota">
+              Los tiempos son de la vivienda simulada, no del reloj real. En
+              modo «Realista», las fugas son constantes las 24 h y el uso humano
+              concentra picos en la mañana (06:00–09:00), mediodía (13:00–15:00)
+              y noche (19:00–22:00), conservando exactamente el total diario.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="tarjeta dash" aria-labelledby="dash-titulo">
+        <h2 id="dash-titulo">Estado del sistema</h2>
+        <div class="dash__cuerpo">
+          <div class="dash__a">
+            <div class="dash__campos">
+              <div>
+                <label for="habitantes">Habitantes</label>
+                <input
+                  type="number"
+                  id="habitantes"
+                  min="1"
+                  max="50"
+                  step="1"
+                  value="4"
+                />
+              </div>
+              <div>
+                <label for="capacidad">Almacenamiento</label>
+                <select id="capacidad">
+                  <option value="450">Tinaco 450 L</option>
+                  <option value="750" selected>Tinaco 750 L</option>
+                  <option value="1100">Tinaco 1100 L</option>
+                  <option value="2500">Cisterna 2500 L</option>
+                </select>
+              </div>
+              <div class="campo-simas">
+                <label for="recibo-simas">Recibo SIMAS (m³/mes)</label>
+                <input
+                  type="number"
+                  id="recibo-simas"
+                  min="0"
+                  max="999"
+                  step="0.1"
+                  placeholder="Opcional (ej. 14)"
+                />
+              </div>
+            </div>
+
+            <div class="val-simas" id="val-simas" aria-live="polite"></div>
+
+            <div class="tanque" id="tanque">
+              <div class="agua" id="agua"></div>
+              <div class="marca-oms" id="marca-oms">
+                <span>Límite OMS</span>
+              </div>
+              <div class="tanque__texto" id="tanque-texto"></div>
+            </div>
+          </div>
+
+          <div class="dash__b">
+            <div class="grafico">
+              <canvas
+                id="grafico-consumo"
+                aria-label="Consumo por habitación"
+              ></canvas>
+              <div class="grafico__vacio" id="grafico-vacio" hidden>
+                Sin consumo registrado en el plano
+              </div>
+            </div>
+
+            <div class="normativa" id="normativa">
+              <div class="normativa__cab">
+                <span>Comparativa social (Torreón)</span>
+                <strong id="norm-valor">0 L/hab/día</strong>
+              </div>
+              <div class="normativa__pista">
+                <div class="normativa__fill" id="norm-fill"></div>
+                <span
+                  class="normativa__marca"
+                  style="left: 36.36%"
+                  title="Vecino eficiente en Torreón: 80 L/hab/día"
+                >
+                  <i>80 L</i>
+                </span>
+                <span
+                  class="normativa__marca normativa__marca--oms"
+                  style="left: 45.45%"
+                  title="Límite OMS: 100 L/hab/día"
+                >
+                  <i>OMS 100</i>
+                </span>
+                <span
+                  class="normativa__marca normativa__marca--alto"
+                  style="left: 81.82%"
+                  title="Promedio residencial alto: 180 L/hab/día"
+                >
+                  <i>180 L</i>
+                </span>
+              </div>
+              <small class="normativa__estado" id="norm-estado"></small>
+            </div>
+          </div>
+
+          <div class="dash__c">
+            <div class="metricas">
+              <div class="mini">
+                <strong id="m-litros">0 L</strong><span>Consumo diario</span>
+              </div>
+              <div class="mini">
+                <strong id="m-costo">$0.00</strong
+                ><span>Costo diario (MXN)</span>
+              </div>
+              <div class="mini">
+                <strong id="m-oms">0 L</strong><span>Límite OMS diario</span>
+              </div>
+              <div class="mini">
+                <strong id="m-uso-oms">0 %</strong
+                ><span>Del límite OMS usado</span>
+              </div>
+              <div class="mini">
+                <strong id="m-litros-mes">0 L (0 m³)</strong
+                ><span>Consumo mensual</span>
+              </div>
+              <div class="mini">
+                <strong id="m-costo-mes">$0.00</strong
+                ><span>Costo mensual (MXN)</span>
+              </div>
+            </div>
+            <div class="dash__pie">
+              <div
+                class="alerta"
+                id="alerta"
+                role="status"
+                aria-live="polite"
+              ></div>
+              <button class="btn-pdf" id="btn-pdf" type="button">
+                Exportar reporte PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="editor" id="editor" hidden>
+      <b id="ed-nombre"></b>
+      <div id="ed-grupo-modo">
+        <label for="ed-modo">Modalidad / Eficiencia</label>
+        <select id="ed-modo"></select>
+      </div>
+      <div class="editor__fila">
+        <div>
+          <label for="ed-uso" id="ed-etiqueta"></label>
+          <input type="number" id="ed-uso" min="0" max="999" step="1" />
+        </div>
+        <div>
+          <label for="ed-frecuencia">Frecuencia</label>
+          <select id="ed-frecuencia">
+            <option value="dia">Al día</option>
+            <option value="semana">A la semana</option>
+          </select>
+        </div>
+      </div>
+      <button type="button" class="ed-hab" id="ed-btn-hab" hidden></button>
+      <p id="ed-calculo"></p>
+    </div>
+
+    <div class="papelera" id="papelera" aria-hidden="true">
+      <span class="papelera__ico">🗑️</span>
+      <span>Suelta aquí para eliminar</span>
+    </div>
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"
+      defer
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+      defer
+    ></script>
+    <script src="app.js?v=13" defer></script>
+
+    <div
+      class="modal"
+      id="modal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-titulo"
+    >
+      <form class="modal__caja" id="modal-form" method="dialog">
+        <h3 class="modal__titulo" id="modal-titulo"></h3>
+        <p class="modal__msg" id="modal-msg" hidden></p>
+        <input
+          type="text"
+          id="modal-input"
+          maxlength="28"
+          autocomplete="off"
+          hidden
+        />
+        <div class="modal__acciones">
+          <button
+            type="button"
+            class="btn-sim btn-sim--sec"
+            id="modal-cancelar"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="btn-sim btn-sim--principal"
+            id="modal-ok"
+          >
+            Aceptar
+          </button>
+        </div>
+      </form>
+    </div>
+  </body>
+</html>
