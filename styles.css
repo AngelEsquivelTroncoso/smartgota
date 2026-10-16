@@ -829,6 +829,23 @@ body.colocando .sala {
   background: #6ee7b7;
 }
 
+.btn-png {
+  width: 100%;
+  margin-top: 8px;
+  padding: 11px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #04140e;
+  background: #38bdf8;
+  border: 0;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-png:hover {
+  background: #7dd3fc;
+}
+
 /* ===== Simulación en tiempo real ===== */
 .sim__cuerpo {
   display: grid;
@@ -869,6 +886,16 @@ body.colocando .sala {
   grid-template-columns: 1fr 1fr 1fr auto;
   gap: 12px;
   align-items: end;
+}
+.sim__ajuste-extra {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sim__ajuste-extra small {
+  font-size: 0.65rem;
+  color: var(--tenue);
 }
 .sim__controles {
   display: flex;
@@ -1018,6 +1045,12 @@ body.arrastrando-disp .papelera.sobre {
   flex: 1;
 }
 .dash .btn-pdf {
+  width: auto;
+  margin-top: 0;
+  padding: 0 22px;
+  white-space: nowrap;
+}
+.dash .btn-png {
   width: auto;
   margin-top: 0;
   padding: 0 22px;

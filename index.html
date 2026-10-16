@@ -59,7 +59,13 @@
                 <select id="sim-patron">
                   <option value="realista" selected>Realista (horas pico)</option>
                   <option value="continuo">Continuo (parejo 24 h)</option>
+                  <option value="personalizado">Personalizado (factor de pico)</option>
                 </select>
+                <div id="sim-patron-personalizado" class="sim__ajuste-extra" style="display: none">
+                  <label for="sim-pico-factor">Factor de horas pico</label>
+                  <input type="number" id="sim-pico-factor" min="0" max="10" step="0.1" value="1" />
+                  <small>Multiplica el consumo en horas pico (06-09, 13-15, 19-22)</small>
+                </div>
               </div>
               <div>
                 <label for="sim-vel">Velocidad de la simulación</label>
@@ -143,6 +149,14 @@
                   placeholder="Opcional (ej. 14)"
                 />
               </div>
+              <div>
+                <label for="costo-litro">Costo por litro (MXN)</label>
+                <input type="number" id="costo-litro" min="0" max="10" step="0.001" value="0.025" />
+              </div>
+              <div>
+                <label for="dias-mes">Días por mes</label>
+                <input type="number" id="dias-mes" min="1" max="31" step="1" value="30" />
+              </div>
             </div>
 
             <div class="val-simas" id="val-simas" aria-live="polite"></div>
@@ -217,6 +231,9 @@
             <div class="dash__pie">
               <div class="alerta" id="alerta" role="status" aria-live="polite"></div>
               <button class="btn-pdf" id="btn-pdf" type="button">Exportar reporte PDF</button>
+              <button class="btn-pdf btn-png" id="btn-png" type="button">
+                Descargar gráfico PNG
+              </button>
             </div>
           </div>
         </div>

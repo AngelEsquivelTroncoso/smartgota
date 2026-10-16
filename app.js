@@ -9,12 +9,14 @@
    resize nativo en su style) siguen vivos en el DOM.
    =========================================================== */
 
-const COSTO_POR_LITRO = 0.025,
-  DIAS_MES = 30,
-  TAM = 44,
-  LITROS_OMS = 100,
-  REF_EFICIENTE = 80,
-  REF_ALTO = 180;
+const CONFIG = {
+  costoPorLitro: 0.025, // MXN por litro consumido
+  diasMes: 30, // días por mes para estimación mensual
+  tamClon: 44, // tamaño de píxel del clon en el plano
+  litrosOMS: 100, // L/hab/día límite OMS
+  refEficiente: 80, // L/hab/día vecino eficiente Torreón
+  refAlto: 180, // L/hab/día residencial alto
+};
 
 const CATALOGO = {
   ducha: {
@@ -249,6 +251,7 @@ const Estado = new Proxy(
     simVelocidad: 3600,
     simRed: 'ninguna',
     simPatron: 'realista',
+    simFactorPico: 1,
   },
   manejador
 );
@@ -276,6 +279,7 @@ function guardarEstado() {
         simVelocidad: Estado.simVelocidad,
         simRed: Estado.simRed,
         simPatron: Estado.simPatron,
+        simFactorPico: Estado.simFactorPico,
       })
     );
     lsFallido = false;
@@ -381,6 +385,9 @@ function cargarEstado() {
       if (typeof g.simPatron !== 'undefined') {
         Estado.simPatron = g.simPatron;
       }
+      if (typeof g.simFactorPico !== 'undefined') {
+        Estado.simFactorPico = Number(g.simFactorPico) || 1;
+      }
 
       g.pisos.forEach(([k, v]) => Estado.pisos.set(k, v));
       Estado.pisoActivo = Estado.pisos.has(g.pisoActivo)
@@ -434,7 +441,7 @@ const entero = (v, min, max) => {
   }
   return Math.min(Math.max(n, min), max);
 };
-const limiteOMS = () => Estado.habitantes * LITROS_OMS;
+const limiteOMS = () => Estado.habitantes * CONFIG.litrosOMS;
 
 function flujoDe(d) {
   const c = CATALOGO[d.tipo];
@@ -481,7 +488,7 @@ function resumenFugas() {
 
 // Calcula el estado de validación cuasi-experimental frente al recibo físico SIMAS (m³/mes)
 function calcularValidacionSimas(litrosDia) {
-  const m3Simulado = (litrosDia * DIAS_MES) / 1000,
+  const m3Simulado = (litrosDia * CONFIG.diasMes) / 1000,
     m3Real = Estado.reciboSimas;
   if (!m3Real || m3Real <= 0) {
     return {
@@ -517,8 +524,8 @@ function generarRecomendacion() {
     hab = (Estado.habitaciones.get(d.sala) || {}).nombre || 'la vivienda';
 
   if (c.fijo) {
-    const mesL = Math.round(litros * DIAS_MES),
-      mesPesos = pesos(mesL * COSTO_POR_LITRO);
+    const mesL = Math.round(litros * CONFIG.diasMes),
+      mesPesos = pesos(mesL * CONFIG.costoPorLitro);
     return (
       '💡 Acción prioritaria: Reparar la Fuga en «' +
       hab +
@@ -541,13 +548,13 @@ function generarRecomendacion() {
     });
   }
 
-  const ahorro20MesL = Math.round(litros * 0.2 * DIAS_MES),
-    ahorro20Pesos = pesos(ahorro20MesL * COSTO_POR_LITRO);
+  const ahorro20MesL = Math.round(litros * 0.2 * CONFIG.diasMes),
+    ahorro20Pesos = pesos(ahorro20MesL * CONFIG.costoPorLitro);
 
   if (mejorModo) {
     const lEco = litrosConFlujo(d, mejorModo.flujo),
-      ahorroEcoMesL = Math.round((litros - lEco) * DIAS_MES),
-      ahorroEcoPesos = pesos(ahorroEcoMesL * COSTO_POR_LITRO);
+      ahorroEcoMesL = Math.round((litros - lEco) * CONFIG.diasMes),
+      ahorroEcoPesos = pesos(ahorroEcoMesL * CONFIG.costoPorLitro);
     return (
       '💡 Recomendación: «' +
       c.nombre +
@@ -603,7 +610,7 @@ function renderDashboard() {
   const L = litrosTotales(),
     cap = Estado.capacidad,
     lim = limiteOMS(),
-    costo = L * COSTO_POR_LITRO;
+    costo = L * CONFIG.costoPorLitro;
   const pct = (L / cap) * 100,
     desborde = L > cap,
     fugas = resumenFugas();
@@ -612,12 +619,12 @@ function renderDashboard() {
   animarCifra($('m-costo'), costo, pesos);
   animarCifra($('m-oms'), lim, (n) => Math.round(n) + ' L');
   animarCifra($('m-uso-oms'), (L / lim) * 100, (n) => Math.round(n) + ' %');
-  animarCifra($('m-litros-mes'), L * DIAS_MES, (n) => {
+  animarCifra($('m-litros-mes'), L * CONFIG.diasMes, (n) => {
     const litrosMes = Math.round(n),
       m3Mes = (litrosMes / 1000).toFixed(1);
     return litrosMes.toLocaleString('es-MX') + ' L (' + m3Mes + ' m³)';
   });
-  animarCifra($('m-costo-mes'), costo * DIAS_MES, pesos);
+  animarCifra($('m-costo-mes'), costo * CONFIG.diasMes, pesos);
 
   // Validación cuasi-experimental contra recibo físico de SIMAS Torreón
   const val = calcularValidacionSimas(L),
@@ -654,27 +661,27 @@ function renderDashboard() {
   $('norm-valor').textContent = Math.round(lHab) + ' L/hab/día';
   fillNorm.style.width = pctNorm + '%';
   fillNorm.className =
-    'normativa__fill' + (lHab > REF_ALTO ? ' rojo' : lHab > LITROS_OMS ? ' ambar' : '');
+    'normativa__fill' + (lHab > CONFIG.refAlto ? ' rojo' : lHab > CONFIG.litrosOMS ? ' ambar' : '');
 
   if (L === 0) {
     $('norm-estado').textContent = 'Referencias Torreón: Eficiente 80 L · OMS 100 L · Alto 180 L';
-  } else if (lHab <= REF_EFICIENTE) {
+  } else if (lHab <= CONFIG.refEficiente) {
     $('norm-estado').textContent =
       '🌟 Nivel vecino eficiente en Torreón (≤ 80 L/hab/día). ¡Excelente cultura hídrica!';
-  } else if (lHab <= LITROS_OMS) {
+  } else if (lHab <= CONFIG.litrosOMS) {
     $('norm-estado').textContent =
       '✅ Dentro del estándar OMS (100 L), a ' +
-      Math.round(lHab - REF_EFICIENTE) +
+      Math.round(lHab - CONFIG.refEficiente) +
       ' L/hab de igualar al vecino eficiente (80 L).';
-  } else if (lHab <= REF_ALTO) {
+  } else if (lHab <= CONFIG.refAlto) {
     $('norm-estado').textContent =
       '⚠️ Supera el límite OMS (+ ' +
-      Math.round(lHab - LITROS_OMS) +
+      Math.round(lHab - CONFIG.litrosOMS) +
       ' L/hab), pero debajo del promedio residencial alto (180 L).';
   } else {
     $('norm-estado').textContent =
       '🚨 Excede el promedio residencial alto de 180 L/hab/día en +' +
-      Math.round(lHab - REF_ALTO) +
+      Math.round(lHab - CONFIG.refAlto) +
       ' L/hab.';
   }
 
@@ -894,9 +901,9 @@ function exportarPDF() {
   }
   const doc = new window.jspdf.jsPDF();
   const L = litrosTotales(),
-    litrosMes = L * DIAS_MES,
+    litrosMes = L * CONFIG.diasMes,
     m3Mes = (litrosMes / 1000).toFixed(2),
-    costo = L * COSTO_POR_LITRO,
+    costo = L * CONFIG.costoPorLitro,
     lim = limiteOMS(),
     lHab = (L / Estado.habitantes).toFixed(1),
     fugas = resumenFugas(),
@@ -943,7 +950,7 @@ function exportarPDF() {
     'Costo diario: ' +
       pesos(costo) +
       ' MXN | Costo mensual estimado: ' +
-      pesos(costo * DIAS_MES) +
+      pesos(costo * CONFIG.diasMes) +
       ' MXN'
   );
   linea(
@@ -1042,6 +1049,20 @@ function exportarPDF() {
   doc.save('reporte-smartgota.pdf');
 }
 $('btn-pdf').addEventListener('click', exportarPDF);
+
+function exportarPNG() {
+  if (!grafico) {
+    // eslint-disable-next-line no-alert
+    alert('No hay gráfico para descargar.');
+    return;
+  }
+  const url = grafico.toBase64Image();
+  const enlace = document.createElement('a');
+  enlace.download = 'grafico-consumo-smartgota.png';
+  enlace.href = url;
+  enlace.click();
+}
+$('btn-png').addEventListener('click', exportarPNG);
 
 /* ---------- Pisos ---------- */
 function crearPiso(nombre) {
@@ -1483,9 +1504,9 @@ function activarSala(sala) {
 
 function coordenadasEnSala(e, sala) {
   const caja = sala.getBoundingClientRect();
-  const x = e.clientX - caja.left - sala.clientLeft - TAM / 2;
-  const y = e.clientY - caja.top - sala.clientTop - TAM / 2;
-  const libre = (n, total) => limitar(n / Math.max(total - TAM, 1), 0, 1); // fracción del espacio libre
+  const x = e.clientX - caja.left - sala.clientLeft - CONFIG.tamClon / 2;
+  const y = e.clientY - caja.top - sala.clientTop - CONFIG.tamClon / 2;
+  const libre = (n, total) => limitar(n / Math.max(total - CONFIG.tamClon, 1), 0, 1); // fracción del espacio libre
   return { x: libre(x, sala.clientWidth), y: libre(y, sala.clientHeight) };
 }
 
@@ -1521,8 +1542,8 @@ function alSoltar(e) {
 // Se guarda la fracción del ESPACIO LIBRE (sala menos ícono) y CSS la resuelve con calc():
 // al estirar o encoger la sala con resize, el clon se reubica solo y nunca se sale de la caja.
 function posicionar(el, fx, fy) {
-  el.style.left = 'calc((100% - ' + TAM + 'px) * ' + fx.toFixed(4) + ')';
-  el.style.top = 'calc((100% - ' + TAM + 'px) * ' + fy.toFixed(4) + ')';
+  el.style.left = 'calc((100% - ' + CONFIG.tamClon + 'px) * ' + fx.toFixed(4) + ')';
+  el.style.top = 'calc((100% - ' + CONFIG.tamClon + 'px) * ' + fy.toFixed(4) + ')';
 }
 
 function refrescarClon(el) {
@@ -1569,7 +1590,15 @@ function crearClon(id, tipo) {
     document.body.classList.remove('arrastrando-disp');
   });
   el.addEventListener('click', () => abrirEditor(id));
-  el.addEventListener('dblclick', () => eliminarDispositivo(id));
+  el.addEventListener('dblclick', async () => {
+    const confirmado = await modalConfirm(
+      '¿Eliminar este dispositivo? Dejará de contar en el consumo.',
+      'Eliminar dispositivo'
+    );
+    if (confirmado) {
+      eliminarDispositivo(id);
+    }
+  });
   return el;
 }
 
@@ -1851,6 +1880,7 @@ const Sim = {
   velocidad: Estado.simVelocidad, // segundos simulados por segundo real
   red: Estado.simRed, // clave de ENTRADAS_RED
   patron: Estado.simPatron, // "realista" (curva horaria con picos) | "continuo" (parejo 24 h)
+  factorPico: Estado.simFactorPico, // multiplicador de horas pico (patrón personalizado)
   nivel: Estado.simNivel !== null ? Estado.simNivel : null, // litros que hay (null = se inicializa al primer render)
   tiempo: Estado.simTiempo, // segundos simulados transcurridos
   ultimo: 0,
@@ -1900,6 +1930,12 @@ function horaActualSim() {
 function etiquetaFranja(h) {
   if (Sim.patron === 'continuo') {
     return '⚖️ Flujo continuo (24 h)';
+  }
+  if (Sim.patron === 'personalizado') {
+    if (esHoraPico(h)) {
+      return '🚿 Hora pico personalizada (' + Sim.factorPico + '×)';
+    }
+    return '🕒 Horario normal';
   }
   if (h < 5) {
     return '🌙 Madrugada (solo fugas / mín.)';
@@ -1952,14 +1988,29 @@ function simFlujos() {
   const totalDia = litrosTotales(),
     fugasDia = resumenFugas().litros,
     humanoDia = Math.max(0, totalDia - fugasDia),
-    factorHora = Sim.patron === 'realista' ? PESOS_HORA[horaActualSim()] : 1,
-    consumo = (fugasDia + humanoDia * factorHora) / SEG_DIA,
+    h = horaActualSim();
+
+  let factorHora;
+  if (Sim.patron === 'realista') {
+    factorHora = PESOS_HORA[h];
+  } else if (Sim.patron === 'personalizado') {
+    factorHora = esHoraPico(h) ? Sim.factorPico : 1;
+  } else {
+    factorHora = 1; // continuo
+  }
+
+  const consumo = (fugasDia + humanoDia * factorHora) / SEG_DIA,
     entrada = ENTRADAS_RED[Sim.red].lmin / 60;
 
   if (Sim.nivel >= Estado.capacidad && entrada >= consumo) {
     return { consumo, entrada: consumo, neto: 0, totalDia };
   }
   return { consumo, entrada, neto: entrada - consumo, totalDia };
+}
+
+// Detecta si una hora del día (0-23) está dentro de las franjas de pico
+function esHoraPico(h) {
+  return (h >= 6 && h < 9) || (h >= 13 && h < 15) || (h >= 19 && h < 22);
 }
 
 function simRender() {
@@ -2092,7 +2143,30 @@ $('sim-red').addEventListener('change', (e) => {
 $('sim-patron').addEventListener('change', (e) => {
   Sim.patron = e.target.value;
   Estado.simPatron = Sim.patron;
+  actualizarVisibilidadPatronPersonalizado();
   simRender();
+});
+
+function actualizarVisibilidadPatronPersonalizado() {
+  const extra = $('sim-patron-personalizado');
+  const esPersonalizado = Sim.patron === 'personalizado';
+  extra.style.display = esPersonalizado ? 'block' : 'none';
+  if (esPersonalizado) {
+    const v = parseFloat($('sim-pico-factor').value);
+    if (!isNaN(v) && v >= 0) {
+      Sim.factorPico = v;
+      Estado.simFactorPico = v;
+    }
+  }
+}
+
+$('sim-pico-factor').addEventListener('input', (e) => {
+  const v = parseFloat(e.target.value);
+  if (!isNaN(v) && v >= 0 && v <= 10) {
+    Sim.factorPico = v;
+    Estado.simFactorPico = v;
+    simRender();
+  }
 });
 
 /* ---------- Inputs globales y arranque ---------- */
@@ -2123,6 +2197,19 @@ $('capacidad').addEventListener('change', (e) => {
   simReiniciar(); // otro tanque = simulación nueva
 });
 
+$('costo-litro').addEventListener('input', (e) => {
+  const v = parseFloat(e.target.value);
+  if (!isNaN(v) && v >= 0) {
+    CONFIG.costoPorLitro = v;
+  }
+});
+$('dias-mes').addEventListener('input', (e) => {
+  const v = parseInt(e.target.value, 10);
+  if (!isNaN(v) && v >= 1 && v <= 31) {
+    CONFIG.diasMes = v;
+  }
+});
+
 $('btn-piso').addEventListener('click', async () => {
   const nombre = await modalPrompt('Nombre del piso (ej. Planta Alta, Azotea):');
   if (!nombre) {
@@ -2143,3 +2230,4 @@ $('btn-sala').addEventListener('click', async () => {
 construirPaleta();
 cargarEstado(); // restaura localStorage o siembra la Planta Baja de ejemplo
 simReiniciar(); // tanque de la simulación lleno y en pausa
+actualizarVisibilidadPatronPersonalizado();

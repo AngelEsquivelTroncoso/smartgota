@@ -27,6 +27,10 @@ Proyecto web estático único: `index.html` + `styles.css` + `app.js` (~1985 lí
 - Ejecutar `npm run format:check` para revisar formateo con Prettier.
 - Los assets llevan `?v=13`; si un cambio de CSS/JS no se ve, actualizar el parámetro o limpiar caché del navegador.
 
+## Configuración (UI)
+- Costo por litro, días por mes, patrón de consumo y factor de pico son ajustables desde el dashboard.
+- Patrón "personalizado" permite definir un multiplicador para las horas pico (06-09, 13-15, 19-22).
+
 ## Gotchas
 - Código, comentarios y strings de UI en español.
 - `localStorage` puede fallar silenciosamente (cupo lleno/bloqueado): la app sigue funcionando sin guardar.
