@@ -180,7 +180,8 @@ const CLAVE_LS_V1 = 'smartgota:estado:v1';
 let pausado = false,
   pendiente = false,
   lsFallido = false,
-  cambiosPendientes = false;
+  cambiosPendientes = false,
+  temporizadorCambios = null;
 
 // Varias mutaciones dentro de un mismo evento => UN solo repintado y UN solo guardado
 function notificar() {
@@ -189,6 +190,14 @@ function notificar() {
   }
   pendiente = true;
   cambiosPendientes = true;
+  // Resetear cambiosPendientes después de 3 segundos sin cambios nuevos
+  if (temporizadorCambios) {
+    clearTimeout(temporizadorCambios);
+  }
+  temporizadorCambios = setTimeout(() => {
+    cambiosPendientes = false;
+    temporizadorCambios = null;
+  }, 3000);
   queueMicrotask(() => {
     pendiente = false;
     renderDashboard();
@@ -254,6 +263,9 @@ const Estado = new Proxy(
     simRed: 'ninguna',
     simPatron: 'realista',
     simFactorPico: 1,
+    // Configuración editable (persistida)
+    costoPorLitro: CONFIG.costoPorLitro,
+    diasMes: CONFIG.diasMes,
   },
   manejador
 );
@@ -282,11 +294,13 @@ function guardarEstado() {
         simRed: Estado.simRed,
         simPatron: Estado.simPatron,
         simFactorPico: Estado.simFactorPico,
+        // Configuración editable
+        costoPorLitro: Estado.costoPorLitro,
+        diasMes: Estado.diasMes,
       })
     );
     lsFallido = false;
     ocultarAvisoLS();
-    cambiosPendientes = false;
   } catch (_) {
     // Almacenamiento lleno o bloqueado: la app sigue funcionando sin guardar.
     if (!lsFallido) {
@@ -298,7 +312,7 @@ function guardarEstado() {
 
 // Muestra / oculta un aviso discreto cuando localStorage falla (2.2)
 function mostrarAvisoLS() {
-  let aviso = $('#aviso-ls');
+  let aviso = $('aviso-ls');
   if (!aviso) {
     aviso = document.createElement('div');
     aviso.id = 'aviso-ls';
@@ -317,7 +331,7 @@ function mostrarAvisoLS() {
 }
 
 function ocultarAvisoLS() {
-  const aviso = $('#aviso-ls');
+  const aviso = $('aviso-ls');
   if (aviso) {
     aviso.remove();
   }
@@ -347,6 +361,7 @@ function cargarEstado() {
         // Guardar migrado en v2 para futuras cargas
         try {
           localStorage.setItem(CLAVE_LS, JSON.stringify(g1));
+          localStorage.removeItem(CLAVE_LS_V1);
         } catch (_) {
           // eslint-disable-next-line no-empty
         }
@@ -391,6 +406,14 @@ function cargarEstado() {
       if (typeof g.simFactorPico !== 'undefined') {
         Estado.simFactorPico = Number(g.simFactorPico) || 1;
       }
+      if (typeof g.costoPorLitro !== 'undefined') {
+        Estado.costoPorLitro = Number(g.costoPorLitro) || CONFIG.costoPorLitro;
+        CONFIG.costoPorLitro = Estado.costoPorLitro;
+      }
+      if (typeof g.diasMes !== 'undefined') {
+        Estado.diasMes = Number(g.diasMes) || CONFIG.diasMes;
+        CONFIG.diasMes = Estado.diasMes;
+      }
 
       g.pisos.forEach(([k, v]) => Estado.pisos.set(k, v));
       Estado.pisoActivo = Estado.pisos.has(g.pisoActivo)
@@ -429,6 +452,8 @@ function cargarEstado() {
   $('capacidad').value = Estado.capacidad;
   $('habitantes').value = Estado.habitantes;
   $('recibo-simas').value = Estado.reciboSimas > 0 ? Estado.reciboSimas : '';
+  $('costo-litro').value = Estado.costoPorLitro;
+  $('dias-mes').value = Estado.diasMes;
   renderTabs();
   activarPiso(Estado.pisoActivo);
   notificar();
@@ -872,7 +897,7 @@ function actualizarGrafico(porSala) {
         plugins: {
           legend: {
             position: 'bottom',
-            labels: { color: '#8AA098', boxWidth: 10, font: { size: 11 } },
+            labels: { color: '#a8c4b8', boxWidth: 10, font: { size: 11 } },
           },
           tooltip: {
             callbacks: {
@@ -1082,6 +1107,8 @@ function renderTabs() {
     t.className = 'tab';
     t.dataset.piso = p.id;
     t.setAttribute('role', 'tab');
+    t.setAttribute('aria-selected', Estado.pisoActivo === p.id ? 'true' : 'false');
+    t.tabIndex = 0;
     t.innerHTML = '<span class="tab__nombre"></span><small></small>';
     t.querySelector('.tab__nombre').textContent = p.nombre; // textContent: sin HTML del usuario
     if (Estado.pisos.size > 1) {
@@ -1099,6 +1126,12 @@ function renderTabs() {
       t.appendChild(x);
     }
     t.addEventListener('click', () => activarPiso(p.id));
+    t.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        activarPiso(p.id);
+      }
+    });
     $('tabs').appendChild(t);
   });
 }
@@ -1106,9 +1139,10 @@ function renderTabs() {
 function activarPiso(id) {
   cerrarEditor();
   Estado.pisoActivo = id;
-  document
-    .querySelectorAll('.tab[data-piso]')
-    .forEach((t) => t.classList.toggle('activa', t.dataset.piso === id));
+  document.querySelectorAll('.tab[data-piso]').forEach((t) => {
+    t.classList.toggle('activa', t.dataset.piso === id);
+    t.setAttribute('aria-selected', t.dataset.piso === id ? 'true' : 'false');
+  });
   // hidden (no remove): conserva clones y el width/height que dejó el resize nativo
   document
     .querySelectorAll('.sala')
@@ -1253,11 +1287,12 @@ function montarHabitacion(hab) {
   el.className = 'sala';
   el.dataset.sala = id;
   el.hidden = piso !== Estado.pisoActivo;
+  el.tabIndex = 0;
   el.innerHTML =
-    '<span class="sala__mover" draggable="true" title="Arrastra para reordenar habitación" aria-label="Reordenar habitación">⠿</span>' +
+    '<span class="sala__mover" draggable="true" title="Arrastra para reordenar habitación" aria-label="Reordenar habitación" tabindex="0">⠿</span>' +
     '<span class="sala__rotulo" title="Doble clic para renombrar"><em></em><b></b></span>' +
     '<button class="sala__x" type="button" title="Eliminar habitación" aria-label="Eliminar habitación">✕</button>' +
-    '<span class="sala__asa" title="Arrastra para cambiar el tamaño"></span>';
+    '<span class="sala__asa" title="Arrastra para cambiar el tamaño" tabindex="0"></span>';
   el.querySelector('em').textContent = nombre;
 
   const btnMover = el.querySelector('.sala__mover');
@@ -1283,6 +1318,15 @@ function montarHabitacion(hab) {
   activarSala(el);
   activarRedimension(el, id);
   aplicarSpans(el, hab);
+  // Navegación por teclado: Enter/Espacio en la sala coloca el dispositivo seleccionado
+  el.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && seleccion) {
+      e.preventDefault();
+      const id = agregarDispositivo(seleccion, el, 0.5, 0.5);
+      seleccionarItem(null);
+      abrirEditor(id);
+    }
+  });
   $('plano').appendChild(el);
   return el;
 }
@@ -1576,6 +1620,7 @@ function crearClon(id, tipo) {
   el.className = 'clon';
   el.id = id;
   el.draggable = true;
+  el.tabIndex = 0;
   if (CATALOGO[tipo].fijo) {
     el.dataset.fijo = '1';
   }
@@ -1607,6 +1652,12 @@ function crearClon(id, tipo) {
     );
     if (confirmado) {
       eliminarDispositivo(id);
+    }
+  });
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      abrirEditor(id);
     }
   });
   return el;
@@ -2004,7 +2055,9 @@ function simFlujos() {
   if (Sim.patron === 'realista') {
     factorHora = PESOS_HORA[h];
   } else if (Sim.patron === 'personalizado') {
-    factorHora = esHoraPico(h) ? Sim.factorPico : 1;
+    // Conservar el volumen total diario: 8 horas pico + 16 horas valle = 24
+    const factorValle = (24 - 8 * Sim.factorPico) / 16;
+    factorHora = esHoraPico(h) ? Sim.factorPico : Math.max(0, factorValle);
   } else {
     factorHora = 1; // continuo
   }
@@ -2094,16 +2147,10 @@ function simPaso(t) {
     Sim.tiempo += paso;
     restante -= paso;
     if (Sim.nivel <= 0 && f.neto <= 0) {
-      Estado.simNivel = Sim.nivel;
-      Estado.simTiempo = Sim.tiempo;
       simPausar();
       break;
     }
   }
-
-  // Guardar nivel y tiempo de simulación en cada paso para persistencia (2.4)
-  Estado.simNivel = Sim.nivel;
-  Estado.simTiempo = Sim.tiempo;
 
   simRender();
   if (Sim.corriendo) {
@@ -2125,6 +2172,8 @@ function simIniciar() {
 function simPausar() {
   Sim.corriendo = false;
   Estado.simCorriendo = false;
+  Estado.simNivel = Sim.nivel;
+  Estado.simTiempo = Sim.tiempo;
   cancelAnimationFrame(Sim.raf);
   $('sim-play').textContent = '▶ Iniciar';
 }
@@ -2211,12 +2260,14 @@ $('costo-litro').addEventListener('input', (e) => {
   const v = parseFloat(e.target.value);
   if (!isNaN(v) && v >= 0) {
     CONFIG.costoPorLitro = v;
+    notificar();
   }
 });
 $('dias-mes').addEventListener('input', (e) => {
   const v = parseInt(e.target.value, 10);
   if (!isNaN(v) && v >= 1 && v <= 31) {
     CONFIG.diasMes = v;
+    notificar();
   }
 });
 
@@ -2239,7 +2290,7 @@ $('btn-sala').addEventListener('click', async () => {
 
 // Manejo de errores de CDN (4.3)
 window.__cdnError = (lib) => {
-  const alerta = $('#alerta');
+  const alerta = $('alerta');
   const mensaje =
     lib === 'chartjs'
       ? 'El gráfico de consumo no está disponible (Chart.js no cargó). Revisa tu conexión a internet.'
@@ -2258,7 +2309,29 @@ window.addEventListener('beforeunload', (e) => {
   }
 });
 
+// Sincroniza el objeto Sim (en memoria) con los valores restaurados de Estado (localStorage)
+function sincronizarSimDesdeEstado() {
+  Sim.velocidad = Estado.simVelocidad;
+  Sim.red = Estado.simRed;
+  Sim.patron = Estado.simPatron;
+  Sim.factorPico = Estado.simFactorPico;
+  Sim.nivel =
+    Estado.simNivel !== null ? Math.min(Estado.simNivel, Estado.capacidad) : Estado.capacidad;
+  Sim.tiempo = Estado.simTiempo || 0;
+  Sim.estado = null;
+
+  $('sim-vel').value = String(Sim.velocidad);
+  $('sim-red').value = Sim.red;
+  $('sim-patron').value = Sim.patron;
+  $('sim-pico-factor').value = Sim.factorPico;
+  actualizarVisibilidadPatronPersonalizado();
+  simRender();
+
+  if (Estado.simCorriendo) {
+    simIniciar();
+  }
+}
+
 construirPaleta();
 cargarEstado(); // restaura localStorage o siembra la Planta Baja de ejemplo
-simReiniciar(); // tanque de la simulación lleno y en pausa
-actualizarVisibilidadPatronPersonalizado();
+sincronizarSimDesdeEstado();

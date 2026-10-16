@@ -1,7 +1,7 @@
 # SmartGota (TI2) — instrucciones para agentes
 
 ## Qué es
-Proyecto web estático único: `index.html` + `styles.css` + `app.js` (~1985 líneas, todo en español). Simulador de consumo de agua de una vivienda. No es monorepo, no hay paso de build, tests, tipado ni CI. Se añade `package.json` solo como contenedor de herramientas de desarrollo (ESLint, Prettier); no se requiere para ejecutar la app. Ver `../AGENTS.md` para el panorama de toda la colección.
+Proyecto web estático único: `index.html` + `styles.css` + `app.js` (todo en español). Simulador de consumo de agua de una vivienda. No es monorepo, no hay paso de build, tests, tipado ni CI. Se añade `package.json` solo como contenedor de herramientas de desarrollo (ESLint, Prettier); no se requiere para ejecutar la app. Ver `../AGENTS.md` para el panorama de toda la colección.
 
 ## Cómo ejecutar
 - Abrir `index.html` directamente en el navegador (`file://` funciona; no hay servidor que levantar).

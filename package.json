@@ -16,5 +16,20 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "eslintConfig": {
+    "env": {
+      "browser": true,
+      "es2022": true
+    },
+    "extends": "eslint:recommended",
+    "globals": {
+      "Chart": "readonly",
+      "jspdf": "readonly"
+    },
+    "rules": {
+      "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+      "no-alert": "warn"
+    }
   }
 }
