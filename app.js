@@ -173,9 +173,11 @@ const CATALOGO = {
 };
 
 /* ---------- Estado reactivo (Proxy) + persistencia ---------- */
-const CLAVE_LS = 'smartgota:estado:v1';
+const CLAVE_LS = 'smartgota:estado:v2';
+const CLAVE_LS_V1 = 'smartgota:estado:v1';
 let pausado = false,
-  pendiente = false;
+  pendiente = false,
+  lsFallido = false;
 
 // Varias mutaciones dentro de un mismo evento => UN solo repintado y UN solo guardado
 function notificar() {
@@ -240,6 +242,13 @@ const Estado = new Proxy(
     siguienteId: 1,
     siguienteSala: 1,
     siguientePiso: 1,
+    // Estado de simulación (persistido para retomar al recargar)
+    simNivel: null,
+    simTiempo: 0,
+    simCorriendo: false,
+    simVelocidad: 3600,
+    simRed: 'ninguna',
+    simPatron: 'realista',
   },
   manejador
 );
@@ -260,14 +269,55 @@ function guardarEstado() {
         pisos: [...Estado.pisos],
         habitaciones: [...Estado.habitaciones],
         dispositivos: [...Estado.dispositivos],
+        // Estado de simulación (2.4)
+        simNivel: Estado.simNivel,
+        simTiempo: Estado.simTiempo,
+        simCorriendo: Estado.simCorriendo,
+        simVelocidad: Estado.simVelocidad,
+        simRed: Estado.simRed,
+        simPatron: Estado.simPatron,
       })
     );
+    lsFallido = false;
+    ocultarAvisoLS();
   } catch (_) {
-    /* almacenamiento lleno o bloqueado: la app sigue funcionando sin guardar */
+    // Almacenamiento lleno o bloqueado: la app sigue funcionando sin guardar.
+    if (!lsFallido) {
+      lsFallido = true;
+      mostrarAvisoLS();
+    }
+  }
+}
+
+// Muestra / oculta un aviso discreto cuando localStorage falla (2.2)
+function mostrarAvisoLS() {
+  let aviso = $('#aviso-ls');
+  if (!aviso) {
+    aviso = document.createElement('div');
+    aviso.id = 'aviso-ls';
+    aviso.className = 'alerta critica';
+    aviso.style.position = 'fixed';
+    aviso.style.top = '10px';
+    aviso.style.left = '50%';
+    aviso.style.transform = 'translateX(-50%)';
+    aviso.style.zIndex = '200';
+    aviso.style.maxWidth = '90%';
+    aviso.style.boxSizing = 'border-box';
+    document.body.appendChild(aviso);
+  }
+  aviso.innerHTML =
+    '<strong>⚠️ Almacenamiento no disponible:</strong> Los cambios no se guardarán. Libera espacio en localStorage o desactiva el modo privado.';
+}
+
+function ocultarAvisoLS() {
+  const aviso = $('#aviso-ls');
+  if (aviso) {
+    aviso.remove();
   }
 }
 
 // Deserialización: arreglos -> Map reactivos + reconstrucción del DOM. Sin datos, siembra la casa de ejemplo.
+// Intenta v2 primero; si no existe, intenta migrar desde v1 (2.3).
 function cargarEstado() {
   let g = null;
   try {
@@ -276,6 +326,29 @@ function cargarEstado() {
     // eslint-disable-next-line no-empty
     // Almacenamiento lleno o bloqueado: la app sigue funcionando sin guardar.
   }
+
+  // Migración desde v1: si no hay v2 pero sí v1, se migra automáticamente
+  if (!g) {
+    try {
+      const g1 = JSON.parse(localStorage.getItem(CLAVE_LS_V1));
+      if (
+        g1 &&
+        [g1.pisos, g1.habitaciones, g1.dispositivos].every(Array.isArray) &&
+        g1.pisos.length
+      ) {
+        g = g1;
+        // Guardar migrado en v2 para futuras cargas
+        try {
+          localStorage.setItem(CLAVE_LS, JSON.stringify(g1));
+        } catch (_) {
+          // eslint-disable-next-line no-empty
+        }
+      }
+    } catch (_) {
+      // eslint-disable-next-line no-empty
+    }
+  }
+
   const valido =
     g && [g.pisos, g.habitaciones, g.dispositivos].every(Array.isArray) && g.pisos.length;
 
@@ -288,6 +361,27 @@ function cargarEstado() {
       Estado.siguienteId = Number(g.siguienteId) || 1;
       Estado.siguienteSala = Number(g.siguienteSala) || 1;
       Estado.siguientePiso = Number(g.siguientePiso) || 1;
+
+      // Restaurar estado de simulación si existe (2.4)
+      if (typeof g.simNivel !== 'undefined') {
+        Estado.simNivel = g.simNivel;
+      }
+      if (typeof g.simTiempo !== 'undefined') {
+        Estado.simTiempo = Number(g.simTiempo) || 0;
+      }
+      if (typeof g.simCorriendo !== 'undefined') {
+        Estado.simCorriendo = Boolean(g.simCorriendo);
+      }
+      if (typeof g.simVelocidad !== 'undefined') {
+        Estado.simVelocidad = Number(g.simVelocidad) || 3600;
+      }
+      if (typeof g.simRed !== 'undefined') {
+        Estado.simRed = g.simRed;
+      }
+      if (typeof g.simPatron !== 'undefined') {
+        Estado.simPatron = g.simPatron;
+      }
+
       g.pisos.forEach(([k, v]) => Estado.pisos.set(k, v));
       Estado.pisoActivo = Estado.pisos.has(g.pisoActivo)
         ? g.pisoActivo
@@ -1753,12 +1847,12 @@ const ENTRADAS_RED = {
 };
 
 const Sim = {
-  corriendo: false,
-  velocidad: 3600, // segundos simulados por segundo real
-  red: 'ninguna', // clave de ENTRADAS_RED
-  patron: 'realista', // "realista" (curva horaria con picos) | "continuo" (parejo 24 h)
-  nivel: null, // litros que hay (null = se inicializa al primer render)
-  tiempo: 0, // segundos simulados transcurridos
+  corriendo: Estado.simCorriendo,
+  velocidad: Estado.simVelocidad, // segundos simulados por segundo real
+  red: Estado.simRed, // clave de ENTRADAS_RED
+  patron: Estado.simPatron, // "realista" (curva horaria con picos) | "continuo" (parejo 24 h)
+  nivel: Estado.simNivel !== null ? Estado.simNivel : null, // litros que hay (null = se inicializa al primer render)
+  tiempo: Estado.simTiempo, // segundos simulados transcurridos
   ultimo: 0,
   raf: 0,
   estado: null,
@@ -1939,10 +2033,16 @@ function simPaso(t) {
     Sim.tiempo += paso;
     restante -= paso;
     if (Sim.nivel <= 0 && f.neto <= 0) {
+      Estado.simNivel = Sim.nivel;
+      Estado.simTiempo = Sim.tiempo;
       simPausar();
       break;
     }
   }
+
+  // Guardar nivel y tiempo de simulación en cada paso para persistencia (2.4)
+  Estado.simNivel = Sim.nivel;
+  Estado.simTiempo = Sim.tiempo;
 
   simRender();
   if (Sim.corriendo) {
@@ -1955,6 +2055,7 @@ function simIniciar() {
     simReiniciar();
   }
   Sim.corriendo = true;
+  Estado.simCorriendo = true;
   Sim.ultimo = performance.now();
   $('sim-play').textContent = '⏸ Pausar';
   Sim.raf = requestAnimationFrame(simPaso);
@@ -1962,6 +2063,7 @@ function simIniciar() {
 
 function simPausar() {
   Sim.corriendo = false;
+  Estado.simCorriendo = false;
   cancelAnimationFrame(Sim.raf);
   $('sim-play').textContent = '▶ Iniciar';
 }
@@ -1969,7 +2071,9 @@ function simPausar() {
 function simReiniciar() {
   simPausar();
   Sim.nivel = Estado.capacidad;
+  Estado.simNivel = Estado.capacidad;
   Sim.tiempo = 0;
+  Estado.simTiempo = 0;
   Sim.estado = null; // fuerza a reescribir el aviso
   simRender();
 }
@@ -1978,13 +2082,16 @@ $('sim-play').addEventListener('click', () => (Sim.corriendo ? simPausar() : sim
 $('sim-reset').addEventListener('click', simReiniciar);
 $('sim-vel').addEventListener('change', (e) => {
   Sim.velocidad = Number(e.target.value);
+  Estado.simVelocidad = Sim.velocidad;
 });
 $('sim-red').addEventListener('change', (e) => {
   Sim.red = e.target.value;
+  Estado.simRed = Sim.red;
   simRender();
 });
 $('sim-patron').addEventListener('change', (e) => {
   Sim.patron = e.target.value;
+  Estado.simPatron = Sim.patron;
   simRender();
 });
 
