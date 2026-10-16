@@ -31,7 +31,21 @@ Proyecto web estático único: `index.html` + `styles.css` + `app.js` (~1985 lí
 - Costo por litro, días por mes, patrón de consumo y factor de pico son ajustables desde el dashboard.
 - Patrón "personalizado" permite definir un multiplicador para las horas pico (06-09, 13-15, 19-22).
 
+## Accesibilidad y navegación por teclado
+- Los elementos de la paleta (`.item`) son focables con Tab y activables con Enter/Space.
+- Se añadieron estilos `:focus-visible` con anillo verde esmeralda para todos los elementos interactivos.
+- Se mejora el contraste de color `--tenue` (#a8c4b8) para texto secundario sobre fondo oscuro.
+- Al cerrar la pestaña con cambios sin guardar se muestra una advertencia del navegador.
+
+## Esquema de estado (localStorage)
+Clave: `smartgota:estado:v2`
+- `capacidad`, `habitantes`, `reciboSimas`, `pisoActivo`, `siguienteId`, `siguienteSala`, `siguientePiso`
+- `pisos`: arreglo de [id, {id, nombre}]
+- `habitaciones`: arreglo de [id, {id, nombre, piso, cs, rs}]
+- `dispositivos`: arreglo de [id, {tipo, sala, fx, fy, uso_personalizado, frecuencia, modo}]
+- `simNivel`, `simTiempo`, `simCorriendo`, `simVelocidad`, `simRed`, `simPatron`, `simFactorPico`
+
 ## Gotchas
 - Código, comentarios y strings de UI en español.
-- `localStorage` puede fallar silenciosamente (cupo lleno/bloqueado): la app sigue funcionando sin guardar.
+- `localStorage` puede fallar (cupo lleno/bloqueado/modo privado): se muestra un aviso en pantalla y la app sigue funcionando sin guardar.
 - No hay código generado, migraciones, codegen ni flujo de despliegue.

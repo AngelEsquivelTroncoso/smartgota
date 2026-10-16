@@ -179,7 +179,8 @@ const CLAVE_LS = 'smartgota:estado:v2';
 const CLAVE_LS_V1 = 'smartgota:estado:v1';
 let pausado = false,
   pendiente = false,
-  lsFallido = false;
+  lsFallido = false,
+  cambiosPendientes = false;
 
 // Varias mutaciones dentro de un mismo evento => UN solo repintado y UN solo guardado
 function notificar() {
@@ -187,6 +188,7 @@ function notificar() {
     return;
   }
   pendiente = true;
+  cambiosPendientes = true;
   queueMicrotask(() => {
     pendiente = false;
     renderDashboard();
@@ -284,6 +286,7 @@ function guardarEstado() {
     );
     lsFallido = false;
     ocultarAvisoLS();
+    cambiosPendientes = false;
   } catch (_) {
     // Almacenamiento lleno o bloqueado: la app sigue funcionando sin guardar.
     if (!lsFallido) {
@@ -1426,6 +1429,7 @@ function construirPaleta() {
       el = document.createElement('div');
     el.className = 'item';
     el.draggable = true;
+    el.tabIndex = 0;
     el.dataset.tipo = tipo;
     el.innerHTML =
       '<span class="ico">' +
@@ -1441,6 +1445,12 @@ function construirPaleta() {
     el.addEventListener('dragstart', (e) => empezarArrastre(e, { tipo }));
     el.addEventListener('dragend', () => (arrastre = null));
     el.addEventListener('click', () => seleccionarItem(seleccion === tipo ? null : tipo)); // flujo táctil
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        seleccionarItem(seleccion === tipo ? null : tipo);
+      }
+    });
     $('paleta').appendChild(el);
   }
 }
@@ -2224,6 +2234,27 @@ $('btn-sala').addEventListener('click', async () => {
   const nombre = await modalPrompt('Nombre de la habitación (ej. Baño principal):');
   if (nombre) {
     crearHabitacion(nombre, Estado.pisoActivo);
+  }
+});
+
+// Manejo de errores de CDN (4.3)
+window.__cdnError = (lib) => {
+  const alerta = $('#alerta');
+  const mensaje =
+    lib === 'chartjs'
+      ? 'El gráfico de consumo no está disponible (Chart.js no cargó). Revisa tu conexión a internet.'
+      : 'La exportación a PDF no está disponible (jspdf no cargó). Revisa tu conexión a internet.';
+  if (alerta) {
+    alerta.className = 'alerta critica';
+    alerta.innerHTML = '<strong>⚠️ Recurso no disponible</strong><br>' + mensaje;
+  }
+  console.warn('SmartGota: CDN falló:', lib);
+};
+
+window.addEventListener('beforeunload', (e) => {
+  if (cambiosPendientes) {
+    e.preventDefault();
+    e.returnValue = '';
   }
 });
 

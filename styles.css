@@ -1,6 +1,6 @@
 :root {
   --texto: #e8f1ed;
-  --tenue: #8aa098;
+  --tenue: #a8c4b8;
   --borde: rgba(255, 255, 255, 0.1);
   --vidrio: rgba(255, 255, 255, 0.045);
   --esm: #34d399;
@@ -97,6 +97,23 @@ input:focus {
   outline: none;
   border-color: var(--esm);
   box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+}
+
+:focus-visible {
+  outline: 3px solid var(--esm);
+  outline-offset: 3px;
+}
+
+.item:focus-visible,
+.sala__mover:focus-visible,
+.sala__asa:focus-visible,
+.btn-sim:focus-visible,
+.nueva:focus-visible,
+.tab-nuevo:focus-visible,
+.tab:focus-visible {
+  outline: 3px solid var(--esm);
+  outline-offset: 2px;
+  z-index: 10;
 }
 
 .app {
