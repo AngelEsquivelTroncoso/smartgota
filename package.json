@@ -1,0 +1,20 @@
+{
+  "name": "smartgota",
+  "version": "1.0.0",
+  "description": "Simulador de consumo de agua de vivienda - SmartGota (TI2). Proyecto web estático único (index.html + styles.css + app.js).",
+  "private": true,
+  "scripts": {
+    "start": "echo 'Abrir index.html directamente en el navegador (file:// funciona; no hay servidor que levantar).'",
+    "lint": "eslint app.js",
+    "lint:fix": "eslint app.js --fix",
+    "format": "prettier --write app.js styles.css index.html",
+    "format:check": "prettier --check app.js styles.css index.html"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "prettier": "^3.3.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

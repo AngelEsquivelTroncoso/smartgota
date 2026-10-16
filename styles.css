@@ -20,18 +20,14 @@ body {
   margin: 0;
   padding: 20px;
   min-height: 100vh;
-  font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: 'Inter', 'Segoe UI', Roboto, Arial, sans-serif;
   color: var(--texto);
   background:
-    radial-gradient(
-      900px 500px at 10% -10%,
-      rgba(16, 185, 129, 0.16),
-      transparent 60%
-    ),
+    radial-gradient(900px 500px at 10% -10%, rgba(16, 185, 129, 0.16), transparent 60%),
     linear-gradient(180deg, #0a1210, #0f1b18) fixed;
 }
 body::after {
-  content: "";
+  content: '';
   position: fixed;
   inset: 0;
   pointer-events: none;
@@ -82,7 +78,7 @@ label {
   color: var(--tenue);
 }
 select,
-input[type="number"] {
+input[type='number'] {
   width: 100%;
   padding: 10px 11px;
   margin-bottom: 12px;
@@ -107,9 +103,9 @@ input:focus {
   display: grid;
   grid-template-columns: 215px 1fr;
   grid-template-areas:
-    "disp plano"
-    "dash dash"
-    "sim  sim";
+    'disp plano'
+    'dash dash'
+    'sim  sim';
   gap: 16px;
   align-items: stretch;
 }
@@ -281,28 +277,28 @@ input:focus {
   display: none;
 }
 /* Mapa de calor hídrico por habitación */
-.sala[data-nivel="bajo"] {
+.sala[data-nivel='bajo'] {
   border-color: rgba(52, 211, 153, 0.48);
   background: rgba(16, 185, 129, 0.06);
 }
-.sala[data-nivel="medio"] {
+.sala[data-nivel='medio'] {
   border-color: rgba(56, 189, 248, 0.52);
   background: rgba(56, 189, 248, 0.07);
 }
-.sala[data-nivel="alto"] {
+.sala[data-nivel='alto'] {
   border-color: rgba(251, 191, 36, 0.68);
   background: rgba(251, 191, 36, 0.09);
   box-shadow: inset 0 0 22px rgba(251, 191, 36, 0.12);
 }
-.sala[data-nivel="alto"] .sala__rotulo b {
+.sala[data-nivel='alto'] .sala__rotulo b {
   color: var(--ambar);
 }
-.sala[data-nivel="fuga"] {
+.sala[data-nivel='fuga'] {
   border-color: rgba(248, 113, 113, 0.85);
   background: rgba(220, 38, 38, 0.11);
   animation: salaFuga 1.6s ease-in-out infinite;
 }
-.sala[data-nivel="fuga"] .sala__rotulo b {
+.sala[data-nivel='fuga'] .sala__rotulo b {
   color: var(--rojo);
 }
 @keyframes salaFuga {
@@ -452,7 +448,7 @@ input:focus {
   font-size: 0.9rem;
 }
 .editor select,
-.editor input[type="number"] {
+.editor input[type='number'] {
   padding: 8px 9px;
   margin-bottom: 9px;
   font-size: 0.82rem;
@@ -508,7 +504,7 @@ input:focus {
   transition: height 0.7s cubic-bezier(0.3, 0.9, 0.3, 1);
 }
 .agua::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(
@@ -633,10 +629,10 @@ input:focus {
   .app {
     grid-template-columns: 1fr;
     grid-template-areas:
-      "disp"
-      "plano"
-      "dash"
-      "sim";
+      'disp'
+      'plano'
+      'dash'
+      'sim';
   }
   #paleta {
     grid-template-columns: 1fr 1fr;
@@ -1052,11 +1048,7 @@ body.arrastrando-disp .papelera.sobre {
 
 /* ===== 1. Pulido visual (Glassmorphism + Botones) ===== */
 .tarjeta {
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.065),
-    rgba(255, 255, 255, 0.025)
-  );
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.025));
   border: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(18px) saturate(140%);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
@@ -1177,11 +1169,7 @@ body.arrastrando-disp .papelera.sobre {
 .modal__caja {
   width: min(100%, 370px);
   padding: 20px;
-  background: linear-gradient(
-    145deg,
-    rgba(18, 33, 28, 0.96),
-    rgba(11, 21, 18, 0.96)
-  );
+  background: linear-gradient(145deg, rgba(18, 33, 28, 0.96), rgba(11, 21, 18, 0.96));
   border: 1px solid rgba(52, 211, 153, 0.4);
   border-radius: 16px;
   box-shadow:

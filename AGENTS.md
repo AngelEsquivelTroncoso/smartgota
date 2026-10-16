@@ -1,11 +1,12 @@
 # SmartGota (TI2) — instrucciones para agentes
 
 ## Qué es
-Proyecto web estático único: `index.html` + `styles.css` + `app.js` (~1985 líneas, todo en español). Simulador de consumo de agua de una vivienda. No es monorepo, no hay `package.json`, ni paso de build, tests, linter, formateador, tipado ni CI. Ver `../AGENTS.md` para el panorama de toda la colección.
+Proyecto web estático único: `index.html` + `styles.css` + `app.js` (~1985 líneas, todo en español). Simulador de consumo de agua de una vivienda. No es monorepo, no hay paso de build, tests, tipado ni CI. Se añade `package.json` solo como contenedor de herramientas de desarrollo (ESLint, Prettier); no se requiere para ejecutar la app. Ver `../AGENTS.md` para el panorama de toda la colección.
 
 ## Cómo ejecutar
 - Abrir `index.html` directamente en el navegador (`file://` funciona; no hay servidor que levantar).
 - Internet necesario solo para el gráfico (Chart.js 4.4.4) y la exportación PDF (jspdf 2.5.1), cargados desde CDN en `<script defer>`. El resto funciona sin conexión.
+- Herramientas de desarrollo (opcional): `npm install` para instalar ESLint/Prettier; `npm run lint` / `npm run lint:fix` para analizar `app.js`; `npm run format` / `npm run format:check` para formatear código.
 
 ## Estado y persistencia
 - `app.js` guarda todo en `localStorage` con la clave `smartgota:estado:v1`; sobrevive a recargas. Para reiniciar desde cero, borrar esa clave en DevTools → Application → Local Storage.
@@ -18,7 +19,9 @@ Proyecto web estático único: `index.html` + `styles.css` + `app.js` (~1985 lí
 - Cambiar de pestaña solo alterna `hidden`; los nodos del DOM (y el tamaño dejado por un resize) se mantienen vivos.
 
 ## Verificación
-- No hay comandos de test/lint/build. Verificar abriendo `index.html` en el navegador y comprobando visualmente. No inventar `npm`/`yarn`.
+- Verificar abriendo `index.html` en el navegador y comprobando visualmente.
+- Ejecutar `npm run lint` para revisar `app.js` con ESLint.
+- Ejecutar `npm run format:check` para revisar formateo con Prettier.
 - Los assets llevan `?v=13`; si un cambio de CSS/JS no se ve, actualizar el parámetro o limpiar caché del navegador.
 
 ## Gotchas

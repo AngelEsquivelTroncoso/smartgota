@@ -10,11 +10,10 @@
     <header>
       <h1>SmartGota: construye tu vivienda</h1>
       <p>
-        Crea tus pisos, añade habitaciones y estíralas desde la esquina: encajan
-        por celdas, sin huecos. Doble clic en un nombre lo renombra; clic en un
-        dispositivo ajusta su modalidad y frecuencia de uso; para quitarlo,
-        doble clic o arrástralo a la papelera. Con el dedo: toca un dispositivo
-        del catálogo y luego una habitación.
+        Crea tus pisos, añade habitaciones y estíralas desde la esquina: encajan por celdas, sin
+        huecos. Doble clic en un nombre lo renombra; clic en un dispositivo ajusta su modalidad y
+        frecuencia de uso; para quitarlo, doble clic o arrástralo a la papelera. Con el dedo: toca
+        un dispositivo del catálogo y luego una habitación.
       </p>
     </header>
 
@@ -28,14 +27,10 @@
         <h2>Plano de la vivienda</h2>
         <div class="tabs">
           <div id="tabs" role="tablist"></div>
-          <button class="tab tab-nuevo" id="btn-piso" type="button">
-            + Añadir piso
-          </button>
+          <button class="tab tab-nuevo" id="btn-piso" type="button">+ Añadir piso</button>
         </div>
         <div id="plano"></div>
-        <button class="nueva" id="btn-sala" type="button">
-          + Añadir habitación
-        </button>
+        <button class="nueva" id="btn-sala" type="button">+ Añadir habitación</button>
       </section>
 
       <section class="tarjeta sim" aria-labelledby="sim-titulo">
@@ -62,9 +57,7 @@
               <div>
                 <label for="sim-patron">Patrón de consumo</label>
                 <select id="sim-patron">
-                  <option value="realista" selected>
-                    Realista (horas pico)
-                  </option>
+                  <option value="realista" selected>Realista (horas pico)</option>
                   <option value="continuo">Continuo (parejo 24 h)</option>
                 </select>
               </div>
@@ -79,66 +72,43 @@
                 </select>
               </div>
               <div class="sim__controles">
-                <button
-                  class="btn-sim btn-sim--principal"
-                  id="sim-play"
-                  type="button"
-                >
+                <button class="btn-sim btn-sim--principal" id="sim-play" type="button">
                   ▶ Iniciar
                 </button>
-                <button
-                  class="btn-sim btn-sim--sec"
-                  id="sim-reset"
-                  type="button"
-                >
+                <button class="btn-sim btn-sim--sec" id="sim-reset" type="button">
                   ↺ Rellenar tanque
                 </button>
               </div>
             </div>
 
             <div class="metricas">
+              <div class="mini"><strong id="sim-m-nivel">0 L</strong><span>Nivel actual</span></div>
               <div class="mini">
-                <strong id="sim-m-nivel">0 L</strong><span>Nivel actual</span>
+                <strong id="sim-m-consumo">0 L/min</strong><span>Consumo de la casa</span>
               </div>
               <div class="mini">
-                <strong id="sim-m-consumo">0 L/min</strong
-                ><span>Consumo de la casa</span>
+                <strong id="sim-m-entrada">0 L/min</strong><span>Entrada de la red</span>
               </div>
               <div class="mini">
-                <strong id="sim-m-entrada">0 L/min</strong
-                ><span>Entrada de la red</span>
-              </div>
-              <div class="mini">
-                <strong id="sim-m-balance">0 L/min</strong
-                ><span>Balance del tanque</span>
+                <strong id="sim-m-balance">0 L/min</strong><span>Balance del tanque</span>
               </div>
               <div class="mini">
                 <strong id="sim-m-tiempo">Día 1 · 00:00</strong
                 ><span id="sim-m-franja">Tiempo simulado</span>
               </div>
+              <div class="mini"><strong id="sim-m-lleno">—</strong><span>Lleno en</span></div>
               <div class="mini">
-                <strong id="sim-m-lleno">—</strong><span>Lleno en</span>
+                <strong id="sim-m-limite">—</strong><span>Llega al 20 % en</span>
               </div>
-              <div class="mini">
-                <strong id="sim-m-limite">—</strong
-                ><span>Llega al 20 % en</span>
-              </div>
-              <div class="mini">
-                <strong id="sim-m-vacio">—</strong><span>Vacío en</span>
-              </div>
+              <div class="mini"><strong id="sim-m-vacio">—</strong><span>Vacío en</span></div>
             </div>
 
-            <div
-              class="alerta"
-              id="sim-alerta"
-              role="status"
-              aria-live="polite"
-            ></div>
+            <div class="alerta" id="sim-alerta" role="status" aria-live="polite"></div>
             <p class="sim__nota">
-              Los tiempos son de la vivienda simulada, no del reloj real. En
-              modo «Realista», las fugas son constantes las 24 h y el uso humano
-              concentra picos en la mañana (06:00–09:00), mediodía (13:00–15:00)
-              y noche (19:00–22:00), conservando exactamente el total diario.
+              Los tiempos son de la vivienda simulada, no del reloj real. En modo «Realista», las
+              fugas son constantes las 24 h y el uso humano concentra picos en la mañana
+              (06:00–09:00), mediodía (13:00–15:00) y noche (19:00–22:00), conservando exactamente
+              el total diario.
             </p>
           </div>
         </div>
@@ -151,14 +121,7 @@
             <div class="dash__campos">
               <div>
                 <label for="habitantes">Habitantes</label>
-                <input
-                  type="number"
-                  id="habitantes"
-                  min="1"
-                  max="50"
-                  step="1"
-                  value="4"
-                />
+                <input type="number" id="habitantes" min="1" max="50" step="1" value="4" />
               </div>
               <div>
                 <label for="capacidad">Almacenamiento</label>
@@ -195,10 +158,7 @@
 
           <div class="dash__b">
             <div class="grafico">
-              <canvas
-                id="grafico-consumo"
-                aria-label="Consumo por habitación"
-              ></canvas>
+              <canvas id="grafico-consumo" aria-label="Consumo por habitación"></canvas>
               <div class="grafico__vacio" id="grafico-vacio" hidden>
                 Sin consumo registrado en el plano
               </div>
@@ -239,39 +199,24 @@
 
           <div class="dash__c">
             <div class="metricas">
+              <div class="mini"><strong id="m-litros">0 L</strong><span>Consumo diario</span></div>
               <div class="mini">
-                <strong id="m-litros">0 L</strong><span>Consumo diario</span>
+                <strong id="m-costo">$0.00</strong><span>Costo diario (MXN)</span>
+              </div>
+              <div class="mini"><strong id="m-oms">0 L</strong><span>Límite OMS diario</span></div>
+              <div class="mini">
+                <strong id="m-uso-oms">0 %</strong><span>Del límite OMS usado</span>
               </div>
               <div class="mini">
-                <strong id="m-costo">$0.00</strong
-                ><span>Costo diario (MXN)</span>
+                <strong id="m-litros-mes">0 L (0 m³)</strong><span>Consumo mensual</span>
               </div>
               <div class="mini">
-                <strong id="m-oms">0 L</strong><span>Límite OMS diario</span>
-              </div>
-              <div class="mini">
-                <strong id="m-uso-oms">0 %</strong
-                ><span>Del límite OMS usado</span>
-              </div>
-              <div class="mini">
-                <strong id="m-litros-mes">0 L (0 m³)</strong
-                ><span>Consumo mensual</span>
-              </div>
-              <div class="mini">
-                <strong id="m-costo-mes">$0.00</strong
-                ><span>Costo mensual (MXN)</span>
+                <strong id="m-costo-mes">$0.00</strong><span>Costo mensual (MXN)</span>
               </div>
             </div>
             <div class="dash__pie">
-              <div
-                class="alerta"
-                id="alerta"
-                role="status"
-                aria-live="polite"
-              ></div>
-              <button class="btn-pdf" id="btn-pdf" type="button">
-                Exportar reporte PDF
-              </button>
+              <div class="alerta" id="alerta" role="status" aria-live="polite"></div>
+              <button class="btn-pdf" id="btn-pdf" type="button">Exportar reporte PDF</button>
             </div>
           </div>
         </div>
@@ -306,10 +251,7 @@
       <span>Suelta aquí para eliminar</span>
     </div>
 
-    <script
-      src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"
-      defer
-    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js" defer></script>
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
       defer
@@ -327,28 +269,10 @@
       <form class="modal__caja" id="modal-form" method="dialog">
         <h3 class="modal__titulo" id="modal-titulo"></h3>
         <p class="modal__msg" id="modal-msg" hidden></p>
-        <input
-          type="text"
-          id="modal-input"
-          maxlength="28"
-          autocomplete="off"
-          hidden
-        />
+        <input type="text" id="modal-input" maxlength="28" autocomplete="off" hidden />
         <div class="modal__acciones">
-          <button
-            type="button"
-            class="btn-sim btn-sim--sec"
-            id="modal-cancelar"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            class="btn-sim btn-sim--principal"
-            id="modal-ok"
-          >
-            Aceptar
-          </button>
+          <button type="button" class="btn-sim btn-sim--sec" id="modal-cancelar">Cancelar</button>
+          <button type="submit" class="btn-sim btn-sim--principal" id="modal-ok">Aceptar</button>
         </div>
       </form>
     </div>
