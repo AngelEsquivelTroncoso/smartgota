@@ -263,6 +263,7 @@ const Estado = new Proxy(
     simRed: 'ninguna',
     simPatron: 'realista',
     simFactorPico: 1,
+    simModoSuministro: 'constante',
     // Configuración editable (persistida)
     costoPorLitro: CONFIG.costoPorLitro,
     diasMes: CONFIG.diasMes,
@@ -294,6 +295,7 @@ function guardarEstado() {
         simRed: Estado.simRed,
         simPatron: Estado.simPatron,
         simFactorPico: Estado.simFactorPico,
+        simModoSuministro: Estado.simModoSuministro,
         // Configuración editable
         costoPorLitro: Estado.costoPorLitro,
         diasMes: Estado.diasMes,
@@ -405,6 +407,9 @@ function cargarEstado() {
       }
       if (typeof g.simFactorPico !== 'undefined') {
         Estado.simFactorPico = Number(g.simFactorPico) || 1;
+      }
+      if (typeof g.simModoSuministro !== 'undefined') {
+        Estado.simModoSuministro = g.simModoSuministro;
       }
       if (typeof g.costoPorLitro !== 'undefined') {
         Estado.costoPorLitro = Number(g.costoPorLitro) || CONFIG.costoPorLitro;
@@ -1936,17 +1941,102 @@ const ENTRADAS_RED = {
   ninguna: { nombre: 'Sin entrada de agua', lmin: 0 },
 };
 
+// Modos de suministro de red (cómo llega el agua del sistema municipal al tinaco)
+const MODOS_SUMINISTRO = {
+  constante: {
+    nombre: 'Presión constante',
+    icono: '💧',
+    desc: 'El agua llega siempre a la misma presión. El tanque se llena y vacía de forma estable.',
+    extraLabel: 'Entrada fija (L/min)',
+    extraDesc: 'Caudal constante de entrada de la red',
+    extraDefault: 6,
+    info: {
+      titulo: 'Presión constante',
+      resumen:
+        'El agua de la red entra al tanque de forma continua e ininterrumpida a un caudal fijo.',
+      detalles: [
+        'Ideal para zonas con servicio de agua las 24 horas del día.',
+        'El tanque tiende a mantenerse lleno si el consumo es menor que la entrada.',
+        'No hay cortes ni interrupciones del suministro.',
+      ],
+      ejemplo: 'Ejemplo: Vivienda con conexión directa a red municipal sin tandeo.',
+    },
+  },
+  tandas: {
+    nombre: 'Tandas de agua',
+    icono: '🕒',
+    desc: 'El agua solo llega en horarios específicos (ej. 6-10h y 18-22h). El resto del día el tanque se vacía solo con el consumo.',
+    extraLabel: 'Entrada en tanda (L/min)',
+    extraDesc: 'Caudal durante las horas de tanda',
+    extraDefault: 6,
+    info: {
+      titulo: 'Tandas de agua',
+      resumen:
+        'El suministro municipal solo entrega agua en horarios determinados (tandeo), común en muchas ciudades.',
+      detalles: [
+        'Durante la tanda, el agua entra al tanque a presión normal.',
+        'Fuera de la tanda, no entra agua y el tanque solo se vacía con el consumo doméstico.',
+        'Si el tanque se vacía antes de la siguiente tanda, la bomba puede trabajar en seco.',
+      ],
+      ejemplo: 'Ejemplo: Torreón, Coah. — Tandas comunes: 06:00–10:00 y 18:00–22:00.',
+    },
+  },
+  aleatorio: {
+    nombre: 'Corte aleatorio',
+    icono: '⚡',
+    desc: 'La red se corta y regresa de forma aleatoria, simulando fallas en el sistema municipal.',
+    extraLabel: 'Probabilidad de corte (%)',
+    extraDesc: 'Probabilidad por hora de que se corte el suministro',
+    extraDefault: 15,
+    info: {
+      titulo: 'Corte aleatorio',
+      resumen:
+        'Simula fallas imprevistas en la red municipal: la agua puede cortarse en cualquier momento.',
+      detalles: [
+        'Cada hora simulada hay una probabilidad de que el agua se corte.',
+        'Si se corta, el tanque solo se vacía hasta que regrese el agua.',
+        'Útil para evaluar la resiliencia del almacenamiento ante cortes inesperados.',
+      ],
+      ejemplo: 'Ejemplo: Red con mantenimiento deficiente o fallas eléctricas frecuentes.',
+    },
+  },
+  flotador: {
+    nombre: 'Bomba con flotador',
+    icono: '🔧',
+    desc: 'Una bomba enciende cuando el tanque baja al 30 % y se apaga al 95 %, solo si hay agua en la red.',
+    extraLabel: 'Nivel arranque bomba (%)',
+    extraDesc: 'Nivel al que se enciende la bomba para llenar el tanque',
+    extraDefault: 30,
+    info: {
+      titulo: 'Bomba con flotador',
+      resumen: 'Una bomba controlada por flotador gestiona el llenado del tanque según su nivel.',
+      detalles: [
+        'La bomba se enciende cuando el nivel baja al umbral configurado (ej. 30 %).',
+        'La bomba se apaga cuando el tanque alcanza el 95 % o cuando no hay agua en la red.',
+        'Evita que el tanque se vacíe completamente si la red tiene agua intermitente.',
+        'Si la red no tiene agua, la bomba no puede llenar aunque se encienda.',
+      ],
+      ejemplo: 'Ejemplo: Tinaco con bomba automática y presostato.',
+    },
+  },
+};
+
 const Sim = {
   corriendo: Estado.simCorriendo,
   velocidad: Estado.simVelocidad, // segundos simulados por segundo real
-  red: Estado.simRed, // clave de ENTRADAS_RED
+  red: Estado.simRed, // clave de ENTRADAS_RED (presión base)
   patron: Estado.simPatron, // "realista" (curva horaria con picos) | "continuo" (parejo 24 h)
   factorPico: Estado.simFactorPico, // multiplicador de horas pico (patrón personalizado)
+  modoSuministro: Estado.simModoSuministro || 'constante', // modo de suministro de red
   nivel: Estado.simNivel !== null ? Estado.simNivel : null, // litros que hay (null = se inicializa al primer render)
   tiempo: Estado.simTiempo, // segundos simulados transcurridos
   ultimo: 0,
   raf: 0,
   estado: null,
+  // Estado del modo flotador
+  bombaEncendida: false,
+  // Estado del modo aleatorio
+  ultimoCorte: 0,
 };
 
 const MENSAJES_SIM = {
@@ -1974,15 +2064,99 @@ const MENSAJES_SIM = {
   },
 };
 
-// Opciones del selector de red, generadas desde ENTRADAS_RED (única fuente de verdad)
-Object.entries(ENTRADAS_RED).forEach(([clave, e]) => {
-  const op = document.createElement('option');
-  op.value = clave;
-  op.textContent = e.nombre + (e.lmin ? ' · ' + e.lmin + ' L/min' : '');
-  $('sim-red').appendChild(op);
+// Genera las tarjetas interactivas de modos de suministro
+function generarTarjetasSuministro() {
+  const grid = $('suministro-grid');
+  grid.innerHTML = '';
+  Object.entries(MODOS_SUMINISTRO).forEach(([clave, modo]) => {
+    const card = document.createElement('div');
+    card.className = 'suministro-card';
+    card.dataset.modo = clave;
+    if (clave === Sim.modoSuministro) {
+      card.classList.add('seleccionada');
+    }
+    card.innerHTML =
+      '<span class="suministro-card__icono">' +
+      modo.icono +
+      '</span><h4 class="suministro-card__nombre">' +
+      modo.nombre +
+      '</h4><p class="suministro-card__desc">' +
+      modo.desc +
+      '</p><span class="suministro-card__click">Ver detalles ▸</span>';
+    card.addEventListener('click', () => {
+      seleccionarModoSuministro(clave);
+      abrirModalSuministro(clave);
+    });
+    grid.appendChild(card);
+  });
+  actualizarExtraSuministro();
+}
+
+function seleccionarModoSuministro(clave) {
+  Sim.modoSuministro = clave;
+  Estado.simModoSuministro = clave;
+  generarTarjetasSuministro();
+  simRender();
+}
+
+function actualizarExtraSuministro() {
+  const extra = $('sim-suministro-extra');
+  const input = $('sim-suministro-extra-input');
+  const label = $('sim-suministro-extra-label');
+  const desc = $('sim-suministro-extra-desc');
+  const modo = MODOS_SUMINISTRO[Sim.modoSuministro];
+
+  if (modo.extraLabel) {
+    extra.style.display = 'block';
+    label.textContent = modo.extraLabel;
+    desc.textContent = modo.extraDesc;
+    input.value = modo.extraDefault;
+    input.min = '0';
+    input.max = '100';
+    input.step = '1';
+  } else {
+    extra.style.display = 'none';
+  }
+
+  input.addEventListener('input', () => {
+    simRender();
+  });
+}
+
+// Abrir modal con información detallada del modo
+function abrirModalSuministro(clave) {
+  const modo = MODOS_SUMINISTRO[clave];
+  const modal = $('modal-suministro');
+  const titulo = $('modal-suministro-titulo');
+  const cuerpo = $('modal-suministro-cuerpo');
+
+  titulo.textContent = modo.nombre;
+  cuerpo.innerHTML =
+    '<p>' +
+    modo.desc +
+    '</p><ul>' +
+    modo.info.detales.map((d) => '<li>' + d + '</li>').join('') +
+    '</ul><div class="ejemplo"><strong>Ejemplo:</strong> ' +
+    modo.info.ejemplo +
+    '</div>';
+
+  modal.hidden = false;
+}
+
+// Cerrar modal
+$('modal-suministro-cerrar').addEventListener('click', () => {
+  $('modal-suministro').hidden = true;
 });
-$('sim-red').value = Sim.red;
-$('sim-patron').value = Sim.patron;
+$('modal-suministro').addEventListener('click', (e) => {
+  if (e.target === $('modal-suministro')) {
+    $('modal-suministro').hidden = true;
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('modal-suministro').hidden) {
+    $('modal-suministro').hidden = true;
+  }
+});
 
 function horaActualSim() {
   return Math.floor((Sim.tiempo % SEG_DIA) / 3600);
@@ -2044,7 +2218,8 @@ function formatoReloj(s) {
 }
 
 // Flujos en litros por segundo simulado. En modo "realista", las fugas ocurren parejo 24 h
-// y el gasto humano se modula según PESOS_HORA[h]. Con el tanque lleno, el flotador cierra la entrada.
+// y el gasto humano se modula según PESOS_HORA[h]. El modo de suministro determina cómo
+// entra el agua de la red al tanque.
 function simFlujos() {
   const totalDia = litrosTotales(),
     fugasDia = resumenFugas().litros,
@@ -2062,13 +2237,59 @@ function simFlujos() {
     factorHora = 1; // continuo
   }
 
-  const consumo = (fugasDia + humanoDia * factorHora) / SEG_DIA,
-    entrada = ENTRADAS_RED[Sim.red].lmin / 60;
+  const consumo = (fugasDia + humanoDia * factorHora) / SEG_DIA;
 
-  if (Sim.nivel >= Estado.capacidad && entrada >= consumo) {
+  // Determinar entrada de agua según el modo de suministro
+  let entrada;
+  const modo = MODOS_SUMINISTRO[Sim.modoSuministro];
+
+  if (Sim.modoSuministro === 'constante') {
+    // Entrada fija siempre
+    entrada = ENTRADAS_RED[Sim.red].lmin / 60;
+  } else if (Sim.modoSuministro === 'tandas') {
+    // Agua solo en horarios de tanda (6-10 y 18-22)
+    const enTanda = (h >= 6 && h < 10) || (h >= 18 && h < 22);
+    entrada = enTanda ? ENTRADAS_RED[Sim.red].lmin / 60 : 0;
+  } else if (Sim.modoSuministro === 'aleatorio') {
+    // Corte aleatorio: cada hora hay probabilidad de cortar
+    const probCorte = parseFloat($('sim-suministro-extra-input').value) || modo.extraDefault;
+    const semilla = Math.floor(Sim.tiempo / 3600);
+    const pseudoAleatorio = (semilla * 1103515245 + 12345) % 100;
+    const hayCorte = pseudoAleatorio < probCorte;
+    entrada = hayCorte ? 0 : ENTRADAS_RED[Sim.red].lmin / 60;
+  } else if (Sim.modoSuministro === 'flotador') {
+    // Bomba con flotador: enciende al nivel bajo, apaga al 95%
+    const nivelPct = (Sim.nivel / Estado.capacidad) * 100;
+    const nivelArranque = parseFloat($('sim-suministro-extra-input').value) || modo.extraDefault;
+    const nivelParada = 95;
+
+    if (Sim.bombaEncendida) {
+      // La bomba está encendida: seguir llenando hasta 95% o sin agua en red
+      if (nivelPct >= nivelParada) {
+        Sim.bombaEncendida = false;
+        entrada = 0;
+      } else {
+        entrada = ENTRADAS_RED[Sim.red].lmin / 60;
+      }
+    } else {
+      // La bomba está apagada: encender si baja del nivel de arranque
+      if (nivelPct <= nivelArranque) {
+        Sim.bombaEncendida = true;
+        entrada = ENTRADAS_RED[Sim.red].lmin / 60;
+      } else {
+        entrada = 0;
+      }
+    }
+  } else {
+    entrada = ENTRADAS_RED[Sim.red].lmin / 60;
+  }
+
+  const neto = entrada - consumo;
+
+  if (Sim.nivel >= Estado.capacidad && neto >= 0) {
     return { consumo, entrada: consumo, neto: 0, totalDia };
   }
-  return { consumo, entrada, neto: entrada - consumo, totalDia };
+  return { consumo, entrada, neto, totalDia };
 }
 
 // Detecta si una hora del día (0-23) está dentro de las franjas de pico
@@ -2194,11 +2415,6 @@ $('sim-vel').addEventListener('change', (e) => {
   Sim.velocidad = Number(e.target.value);
   Estado.simVelocidad = Sim.velocidad;
 });
-$('sim-red').addEventListener('change', (e) => {
-  Sim.red = e.target.value;
-  Estado.simRed = Sim.red;
-  simRender();
-});
 $('sim-patron').addEventListener('change', (e) => {
   Sim.patron = e.target.value;
   Estado.simPatron = Sim.patron;
@@ -2315,16 +2531,17 @@ function sincronizarSimDesdeEstado() {
   Sim.red = Estado.simRed;
   Sim.patron = Estado.simPatron;
   Sim.factorPico = Estado.simFactorPico;
+  Sim.modoSuministro = Estado.simModoSuministro || 'constante';
   Sim.nivel =
     Estado.simNivel !== null ? Math.min(Estado.simNivel, Estado.capacidad) : Estado.capacidad;
   Sim.tiempo = Estado.simTiempo || 0;
   Sim.estado = null;
 
   $('sim-vel').value = String(Sim.velocidad);
-  $('sim-red').value = Sim.red;
   $('sim-patron').value = Sim.patron;
   $('sim-pico-factor').value = Sim.factorPico;
   actualizarVisibilidadPatronPersonalizado();
+  generarTarjetasSuministro();
   simRender();
 
   if (Estado.simCorriendo) {

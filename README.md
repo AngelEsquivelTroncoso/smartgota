@@ -8,7 +8,7 @@ Simulador de consumo de agua de una vivienda. Proyecto web estático único (`in
 - Colocar dispositivos del catálogo (ducha, inodoro, lavabo, tina, lavadora, lavavajillas, grifo, aire lavado, filtro, fuga) y configurar su uso, frecuencia y modalidad de eficiencia.
 - Ver el consumo por habitación con mapa de calor hídrico y gráfico de rosquilla.
 - Validar el modelo simulado contra el recibo físico de SIMAS (Torreón, Coah.).
-- Simular en tiempo real el vaciado/llenado del tanque con la red de agua, con horas pico de consumo y diferentes presiones de red.
+- Simular en tiempo real el vaciado/llenado del tanque con la red de agua, con horas pico de consumo, diferentes presiones de red y cuatro modos de suministro (presión constante, tandas de agua, corte aleatorio y bomba con flotador).
 - Exportar reportes en PDF y descargar el gráfico en PNG.
 
 ## Cómo ejecutar

@@ -51,8 +51,15 @@
           <div class="sim__panel">
             <div class="sim__ajustes">
               <div>
-                <label for="sim-red">Agua de la red (SIMAS)</label>
-                <select id="sim-red"></select>
+                <label for="sim-suministro">Modo de suministro de red</label>
+                <div class="sim__suministro-grid" id="sim-suministro-grid">
+                  <!-- Las tarjetas se generan desde JS -->
+                </div>
+                <div id="sim-suministro-extra" class="sim__ajuste-extra" style="display: none">
+                  <label id="sim-suministro-extra-label">Ajuste adicional</label>
+                  <input type="number" id="sim-suministro-extra-input" min="0" max="100" step="1" />
+                  <small id="sim-suministro-extra-desc"></small>
+                </div>
               </div>
               <div>
                 <label for="sim-patron">Patrón de consumo</label>
@@ -116,6 +123,18 @@
               (06:00–09:00), mediodía (13:00–15:00) y noche (19:00–22:00), conservando exactamente
               el total diario.
             </p>
+
+            <!-- Cuadro interactivo: modos de suministro de red -->
+            <div class="suministro-info" id="suministro-info">
+              <h3 class="suministro-info__titulo">Modos de suministro de agua</h3>
+              <p class="suministro-info__subtitulo">
+                Selecciona cómo llega el agua de la red al tinaco. Haz clic en una tarjeta para ver
+                detalles.
+              </p>
+              <div class="suministro-grid" id="suministro-grid">
+                <!-- Tarjetas generadas por JS -->
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -239,6 +258,24 @@
         </div>
       </section>
     </main>
+
+    <!-- Modal de información del modo de suministro -->
+    <div
+      class="modal"
+      id="modal-suministro"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-suministro-titulo"
+    >
+      <div class="modal__caja">
+        <button type="button" id="modal-suministro-cerrar" class="btn-sim btn-sim--sec">
+          ✕ Cerrar
+        </button>
+        <h3 class="modal__titulo" id="modal-suministro-titulo"></h3>
+        <div class="modal__cuerpo" id="modal-suministro-cuerpo"></div>
+      </div>
+    </div>
 
     <div class="editor" id="editor" hidden>
       <b id="ed-nombre"></b>

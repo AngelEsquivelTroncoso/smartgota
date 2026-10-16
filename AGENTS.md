@@ -31,6 +31,15 @@ Proyecto web estático único: `index.html` + `styles.css` + `app.js` (todo en e
 - Costo por litro, días por mes, patrón de consumo y factor de pico son ajustables desde el dashboard.
 - Patrón "personalizado" permite definir un multiplicador para las horas pico (06-09, 13-15, 19-22).
 
+## Modos de suministro de red
+Cuatro modos disponibles en el simulador de tanque:
+1. **Presión constante**: Agua entra siempre al mismo caudal.
+2. **Tandas de agua**: Agua solo en horarios específicos (ej. 06-10h y 18-22h).
+3. **Corte aleatorio**: La red se corta aleatoriamente con probabilidad configurable por hora.
+4. **Bomba con flotador**: La bomba enciende cuando el tanque baja a un nivel umbral y se apaga al 95 %.
+
+Cada modo tiene un cuadro interactivo con información detallada accesible al hacer clic en su tarjeta.
+
 ## Accesibilidad y navegación por teclado
 - Los elementos de la paleta (`.item`) son focables con Tab y activables con Enter/Space.
 - Se añadieron estilos `:focus-visible` con anillo verde esmeralda para todos los elementos interactivos.
@@ -43,7 +52,8 @@ Clave: `smartgota:estado:v2`
 - `pisos`: arreglo de [id, {id, nombre}]
 - `habitaciones`: arreglo de [id, {id, nombre, piso, cs, rs}]
 - `dispositivos`: arreglo de [id, {tipo, sala, fx, fy, uso_personalizado, frecuencia, modo}]
-- `simNivel`, `simTiempo`, `simCorriendo`, `simVelocidad`, `simRed`, `simPatron`, `simFactorPico`
+- `simNivel`, `simTiempo`, `simCorriendo`, `simVelocidad`, `simRed`, `simPatron`, `simFactorPico`, `simModoSuministro`
+- `costoPorLitro`, `diasMes`
 
 ## Gotchas
 - Código, comentarios y strings de UI en español.

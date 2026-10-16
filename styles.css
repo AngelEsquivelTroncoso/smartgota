@@ -962,6 +962,123 @@ body.colocando .sala {
   line-height: 1.45;
   color: var(--tenue);
 }
+
+/* ===== Cuadro interactivo: modos de suministro ===== */
+.suministro-info {
+  margin-top: 18px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--borde);
+  border-radius: 11px;
+}
+.suministro-info__titulo {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--texto);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.suministro-info__subtitulo {
+  margin: 0 0 12px;
+  font-size: 0.72rem;
+  color: var(--tenue);
+}
+.suministro-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+.suministro-card {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.suministro-card:hover {
+  border-color: var(--esm);
+  background: rgba(52, 211, 153, 0.1);
+  transform: translateY(-2px);
+}
+.suministro-card.seleccionada {
+  border-color: var(--esm);
+  background: rgba(52, 211, 153, 0.16);
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.25);
+}
+.suministro-card__icono {
+  font-size: 1.8rem;
+  margin-bottom: 6px;
+}
+.suministro-card__nombre {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--texto);
+  margin: 0 0 4px;
+}
+.suministro-card__desc {
+  font-size: 0.68rem;
+  color: var(--tenue);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+.suministro-card__click {
+  font-size: 0.62rem;
+  color: var(--esm);
+  font-weight: 600;
+  margin-top: auto;
+}
+
+/* ===== Modal de información ===== */
+#modal-suministro .modal__caja {
+  max-width: 420px;
+}
+#modal-suministro-cerrar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+}
+.modal__cuerpo {
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--texto);
+}
+.modal__cuerpo h4 {
+  margin: 14px 0 6px;
+  color: var(--esm);
+  font-size: 0.9rem;
+}
+.modal__cuerpo p {
+  margin: 0 0 10px;
+  color: var(--texto);
+}
+.modal__cuerpo ul {
+  margin: 0 0 10px;
+  padding-left: 18px;
+  color: var(--texto);
+}
+.modal__cuerpo li {
+  margin: 0 0 4px;
+}
+.modal__cuerpo .ejemplo {
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px dashed var(--esm);
+  border-radius: 8px;
+  font-size: 0.75rem;
+}
+.modal__cuerpo .ejemplo strong {
+  color: var(--esm);
+}
+
 @media (max-width: 1120px) {
   .sim__ajustes {
     grid-template-columns: 1fr 1fr;
