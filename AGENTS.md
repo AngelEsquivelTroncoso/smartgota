@@ -12,22 +12,23 @@ Proyecto web estático único: `index.html` + `styles.css` + `app.js` (todo en e
 
 ## Arranque y navegación
 
-- Punto de entrada: `index.html`; el script es `app.js?v=18` (defer). Assets con `?v=18`.
+- Punto de entrada: `index.html`; el script es `app.js?v=19` (defer). Assets con `?v=19`.
 - Arranque: `construirPaleta(); cargarEstado(); iniciarApp(); sincronizarSimDesdeEstado();`.
 - No hay modo básico ni asistente de 3 pasos. La app abre directamente la vista “Mi casa”; si no hay onboarding completado, `iniciarApp()` muestra `#modal-onboarding`.
 - `#vistas-avanzadas` alterna entre “Mi casa” (`#vista-constructor`) y “Simulador” (`#vista-simulador`) con `mostrarVistaAvanzada()`.
 - “Mi casa” agrupa el resumen, el constructor y el diagnóstico. El diagnóstico tiene tres paneles internos (`Consumo`, `Recibo`, `Social`) controlados por `[data-diag]` y `mostrarPanelDiagnostico()`.
+- Las pestañas de diagnóstico son `#tab-diag-consumo`, `#tab-diag-recibo` y `#tab-diag-social`; los paneles son `#diag-consumo`, `#diag-recibo` y `#diag-social` con `role="tabpanel"`.
 - El botón “Simular el día” (`#btn-ir-simulador`) cambia a la vista del simulador; no inicia la simulación por sí solo.
 - Cambiar de pestaña solo alterna `hidden`; los nodos del DOM (y el tamaño dejado por un resize) se mantienen vivos.
 - El gráfico y el layout del constructor se recalculan al volver a la vista de constructor o al panel `Consumo`.
 
 ## Estado y persistencia
 
-- `app.js` guarda todo en `localStorage` con la clave `smartgota:estado:v3`; sobrevive a recargas. Para reiniciar desde cero, usar “Reiniciar casa” en “Mi casa” o borrar la clave en DevTools → Application → Local Storage.
+- `app.js` guarda todo en `localStorage` con la clave `smartgota:estado:v3`; sobrevive a recargas. Para reiniciar desde cero, usar “Reiniciar casa” en “Mi casa”. Borrar la clave en DevTools con la pestaña abierta no es fiable: `beforeunload`/`visibilitychange` vuelven a guardar la simulación.
 - No hay migración desde `v1`/`v2` ni desde el antiguo wizard. Al arrancar solo se lee `v3`; un estado viejo se ignora y se abre el onboarding. “Reiniciar casa” borra además `smartgota:estado:v1`, `smartgota:estado:v2` y `smartgota:wizard:v1`.
 - Sin estado `v3` válido no se siembra una casa de ejemplo: `cargarEstado()` deja el estado limpio y `iniciarApp()` abre el onboarding.
 - Si existe `v3` con `onboardingCompletado: true`, se restauran pisos, habitaciones, dispositivos y simulación.
-- El estado es un `Proxy`: cualquier cambio repinta el dashboard y guarda en un `queueMicrotask` (un solo repintado y un solo guardado por evento). No añadir listeners que luchen contra ese ciclo.
+- El estado es un `Proxy`: cualquier cambio repinta las vistas dependientes (resumen/diagnóstico y simulador) y guarda en un `queueMicrotask` (un solo repintado y un solo guardado por evento). No añadir listeners que luchen contra ese ciclo.
 - Si `localStorage` falla (cupo lleno/bloqueado/modo privado), se muestra un aviso discreto en pantalla y la app sigue funcionando sin guardar.
 
 ## Onboarding y plantillas
@@ -42,13 +43,14 @@ Proyecto web estático único: `index.html` + `styles.css` + `app.js` (todo en e
 ## Resumen y diagnóstico (“Mi casa”)
 
 - `renderDashboard()` calcula `litrosTotales()` y `resumenPorSala()`; siguen siendo la única fuente de verdad para el consumo.
-- El resumen superior muestra tres KPIs: consumo diario (`#m-litros`), diferencia contra el recibo (`#m-vs-recibo`) y costo mensual (`#m-costo-mes`). El recibo mensual se edita en `#recibo-simas`; tarifa y días del mes quedan en el `details` “Tarifa y periodo”.
+- El resumen superior muestra tres KPIs: consumo diario (`#m-litros`), diferencia firmada contra el recibo (`#m-vs-recibo`) y costo mensual (`#m-costo-mes`). `renderResumenRecibo()` actualiza además `#m-vs-recibo-detalle` (m³ estimados vs reales) y `#m-recibo-real`/`#m-recibo-dif` en el panel Recibo. El recibo mensual se edita en `#recibo-simas`; tarifa y días del mes quedan en el `details` “Tarifa y periodo”.
 - La comparativa `#comparativa-recibo` usa `calcularValidacionSimas()` y muestra m³ virtuales vs m³ reales del recibo. La barra tiene estados `sin-recibo`, `vacio`, `bajo`, `ok` y `alto` (±15 %). Vive en el panel `Recibo`.
 - La recomendación se genera con `generarRecomendacion()` y queda plegada en `#alerta-rec-detalle`; la alerta visible es una sola (`#alerta`).
 - El semáforo social usa `CONFIG.refEficiente` (80), `CONFIG.litrosOMS` (100) y `CONFIG.refAlto` (180) L/persona/día y vive en el panel `Social`.
 - Las acciones secundarias (“Exportar PDF”, “Descargar gráfico PNG”, “Reiniciar casa”) están en el menú `#menu-acciones`, abierto con `#btn-acciones`.
 - La paleta se agrupa por `GRUPOS_PALETA` (Baño · Cocina y lavandería · Casa y exterior); no añadir dispositivos fuera de esos grupos sin actualizar la lista.
-- “Reiniciar casa” pide confirmación con `modalConfirm()` y recarga la página con el onboarding abierto.
+- El flujo táctil selecciona un `.item` y luego una habitación. `colocarSeleccion()` coloca el dispositivo, abre el editor y hace `stopPropagation()` para que el mismo clic no lo cierre.
+- “Reiniciar casa” pide confirmación con `modalConfirm()` y recarga la página con el onboarding abierto. El flag `reiniciandoCasa` evita que `persistirSimulacion()` reescriba la casa borrada durante `beforeunload`/`visibilitychange`.
 
 ## Simulador y tanque
 
@@ -63,7 +65,7 @@ Proyecto web estático único: `index.html` + `styles.css` + `app.js` (todo en e
 - `#sim-m-franja` resume la franja de tandeo o el estado del suministro; balance, llenado, límite del 20 % y vaciado quedan en el `details` “Ver detalles de la simulación”.
 - El nivel del tanque vive en `Sim` (fuera del Proxy para no repintar a 60 fps). Cada hora simulada conserva la integral diaria de `PESOS_HORA`.
 - Con la red en presión baja el tinaco se vacía durante el uso normal; la bomba manual o automática lo recupera desde la red.
-- Al quedar el tanque vacío sin entrada de agua, la simulación se pausa y muestra `#sim-aviso-vacio` con “Encender bomba” (`#sim-encender-bomba`) y “Seguir sin agua” (`#sim-seguir-sin-agua`). En automático el encendido es implícito y el botón manual se oculta.
+- Al quedar el tanque vacío sin entrada de agua, la simulación se pausa y muestra `#sim-aviso-vacio` con “Encender bomba” (`#sim-encender-bomba`) y “Seguir sin agua” (`#sim-seguir-sin-agua`). En automático el encendido es implícito, el botón manual se oculta y el texto de `#sim-aviso-texto` explica que la bomba arrancará cuando haya suministro.
 - “Seguir sin agua” mantiene el tiempo avanzando con consumo real 0; los sensores también quedan en 0 hasta que vuelva el suministro.
 - El resumen de la sesión solo se abre con `#sim-finalizar`.
 - “Reiniciar simulación” (`simReiniciar()`) vuelve a llenar el tinaco, reinicia tiempo y consumo acumulado y apaga la bomba; conserva el modo de suministro y el modo de bomba.
@@ -81,8 +83,9 @@ Proyecto web estático único: `index.html` + `styles.css` + `app.js` (todo en e
 
 - El onboarding atrapa el foco, valida con `aria-invalid`/`role="alert"` y no se puede cerrar con Escape.
 - La guía de uso (`#modal-ayuda`) atrapa el foco con `trapaFoco()`, cierra con Escape, con el fondo o con sus botones, y devuelve el foco a `#btn-ayuda`.
-- Las pestañas de vista y de diagnóstico usan `role="tab"`/`aria-selected`; el menú de acciones usa `aria-expanded` y cierra con Escape o clic fuera.
-- Los elementos de la paleta (`.item`) son focables con Tab y activables con Enter/Space.
+- Las pestañas de vista y de diagnóstico usan `role="tab"`/`aria-selected`/`aria-controls`; los paneles usan `role="tabpanel"`.
+- El menú de acciones usa `aria-expanded`, cierra con Escape o clic fuera y al cerrar con Escape devuelve el foco a `#btn-acciones`.
+- Los elementos de la paleta (`.item`) son focables con Tab y activables con Enter/Space; una habitación enfocada recibe el dispositivo seleccionado con Enter/Space.
 - Hay estilos `:focus-visible` con anillo verde esmeralda para elementos interactivos.
 - La comparativa usa `role="progressbar"` con `aria-valuenow`/`aria-valuetext`; los sensores usan `role="status"`.
 - Al cerrar la pestaña con cambios sin guardar se muestra una advertencia del navegador.
@@ -106,11 +109,13 @@ Clave: `smartgota:estado:v3`
 - `npm run lint` para revisar `app.js` con ESLint.
 - `npm run format:check` para revisar formateo con Prettier.
 - Comprobar los paneles de diagnóstico (`Consumo`, `Recibo`, `Social`), que el gráfico vuelva a medir al regresar a `Consumo` y que el menú `#btn-acciones` abra/cierre con teclado y clic fuera.
+- Comprobar el flujo de la paleta: seleccionar un dispositivo, colocarlo en una habitación y verificar que el editor se abre; repetirlo con Enter/Space.
 - Comprobar la guía `#modal-ayuda`: abre, atrapa el foco, cierra con Escape y devuelve el foco.
+- Comprobar “Reiniciar casa”: confirmar, esperar la recarga y verificar que aparece el onboarding y que el `v3` guardado tiene `onboardingCompletado: false`, sin pisos ni dispositivos.
 - Comprobar la invariante de sensores: suma de caudales por habitación ≈ consumo real de la casa (tolerancia de redondeo ≤ 0,001 L/min).
 - Comprobar la bomba: drenaje con `normal`, llenado manual, arranque automático al 20 %, paro al 100 % y bloqueo en `corte`/fuera de tandeo. En el tanque vacío: “Encender bomba” y “Seguir sin agua”.
 - Revisar 360, 500, 768, 1244 y 1440 px sin desbordamiento horizontal (`document.documentElement.scrollWidth <= clientWidth`); en móvil la paleta usa dos columnas y el acordeón de sensores se mantiene cerrado.
-- Si un cambio de CSS/JS no se ve, actualizar el parámetro `?v=18` o limpiar caché del navegador.
+- Si un cambio de CSS/JS no se ve, actualizar el parámetro `?v=19` o limpiar caché del navegador.
 
 ## Gotchas
 

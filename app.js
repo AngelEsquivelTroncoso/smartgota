@@ -182,6 +182,7 @@ let pausado = false,
   pendiente = false,
   lsFallido = false,
   cambiosPendientes = false,
+  reiniciandoCasa = false,
   temporizadorCambios = null;
 
 // Varias mutaciones dentro de un mismo evento => UN solo repintado y UN solo guardado
@@ -3272,7 +3273,7 @@ window.addEventListener('beforeunload', (e) => {
 // Guarda el estado vivo de la simulación al salir o al ocultar la pestaña.
 // No usa notificar() para no repintar en ese momento; guarda directamente.
 function persistirSimulacion() {
-  if (Sim.nivel === null) {
+  if (reiniciandoCasa || Sim.nivel === null) {
     return;
   }
   const estabaPausado = pausado;
@@ -3531,6 +3532,9 @@ async function reiniciarCasa() {
   if (!ok) {
     return;
   }
+  // Evita que beforeunload/visibilitychange vuelvan a guardar la casa recién borrada.
+  reiniciandoCasa = true;
+  cambiosPendientes = false;
   try {
     CLAVES_LEGADO.forEach((clave) => localStorage.removeItem(clave));
     localStorage.removeItem(CLAVE_LS);
