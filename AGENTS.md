@@ -1,61 +1,106 @@
 # SmartGota (TI2) — instrucciones para agentes
 
 ## Qué es
-Proyecto web estático único: `index.html` + `styles.css` + `app.js` (todo en español). Simulador de consumo de agua de una vivienda. No es monorepo, no hay paso de build, tests, tipado ni CI. Se añade `package.json` solo como contenedor de herramientas de desarrollo (ESLint, Prettier); no se requiere para ejecutar la app. Ver `../AGENTS.md` para el panorama de toda la colección.
+
+Proyecto web estático único: `index.html` + `styles.css` + `app.js` (todo en español). Simulador de consumo de agua de una vivienda, ahora planteado como **“El Detective del Agua”**: onboarding express, plantilla inicial según perfil de vivienda, comparación del plano contra el recibo mensual, constructor de planos, simulación del tanque y sensores virtuales por habitación. No es monorepo, no hay paso de build, tests, tipado ni CI. `package.json` solo contiene ESLint/Prettier de desarrollo; no se necesita para ejecutar la app.
 
 ## Cómo ejecutar
+
 - Abrir `index.html` directamente en el navegador (`file://` funciona; no hay servidor que levantar).
 - Internet necesario solo para el gráfico (Chart.js 4.4.4) y la exportación PDF (jspdf 2.5.1), cargados desde CDN en `<script defer>`. El resto funciona sin conexión.
 - Herramientas de desarrollo (opcional): `npm install` para instalar ESLint/Prettier; `npm run lint` / `npm run lint:fix` para analizar `app.js`; `npm run format` / `npm run format:check` para formatear código.
 
-## Estado y persistencia
-- `app.js` guarda todo en `localStorage` con la clave `smartgota:estado:v2`; sobrevive a recargas. Para reiniciar desde cero, borrar esa clave en DevTools → Application → Local Storage.
-- Si existe un estado `v1` previo, se migra automáticamente a `v2` al cargar.
-- Si `localStorage` falla (cupo lleno/bloqueado/modo privado), se muestra un aviso discreto en pantalla y la app sigue funcionando sin guardar.
-- Sin estado válido, `cargarEstado()` siembra la casa de ejemplo ("Planta Baja" con Cocina, Baño, Salón).
-- El estado es un `Proxy`: cualquier cambio repinta el dashboard y guarda en un `queueMicrotask` (un solo repintado y un solo guardado por evento). No añadir listeners que luchen contra ese ciclo.
-- El estado de la simulación (nivel, tiempo, velocidad, red, patrón, corriendo) se persiste en `localStorage` y se restaura al recargar.
+## Arranque y navegación
 
-## Entrada y arranque
-- Punto de entrada: `index.html`; el script es `app.js?v=13` (defer).
-- Últimas líneas de `app.js`: `construirPaleta(); cargarEstado(); simReiniciar();` — la restauración de `localStorage` ocurre antes de arrancar la simulación.
+- Punto de entrada: `index.html`; el script es `app.js?v=17` (defer). Assets con `?v=17`.
+- Arranque: `construirPaleta(); cargarEstado(); iniciarApp(); sincronizarSimDesdeEstado();`.
+- No hay modo básico ni asistente de 3 pasos. La app abre directamente el constructor y el dashboard; si no hay onboarding completado, `iniciarApp()` muestra `#modal-onboarding`.
+- `#vistas-avanzadas` alterna entre “Constructor y diagnóstico” (`#vista-constructor`) y “Simulador en tiempo real” (`#vista-simulador`) con `mostrarVistaAvanzada()`.
 - Cambiar de pestaña solo alterna `hidden`; los nodos del DOM (y el tamaño dejado por un resize) se mantienen vivos.
+- El gráfico y el layout del constructor se recalculan al volver a la vista de constructor.
 
-## Verificación
-- Verificar abriendo `index.html` en el navegador y comprobando visualmente.
-- Ejecutar `npm run lint` para revisar `app.js` con ESLint.
-- Ejecutar `npm run format:check` para revisar formateo con Prettier.
-- Los assets llevan `?v=13`; si un cambio de CSS/JS no se ve, actualizar el parámetro o limpiar caché del navegador.
+## Estado y persistencia
 
-## Configuración (UI)
-- Costo por litro, días por mes, patrón de consumo y factor de pico son ajustables desde el dashboard.
-- Patrón "personalizado" permite definir un multiplicador para las horas pico (06-09, 13-15, 19-22).
+- `app.js` guarda todo en `localStorage` con la clave `smartgota:estado:v3`; sobrevive a recargas. Para reiniciar desde cero, usar “Reiniciar casa” en el dashboard o borrar la clave en DevTools → Application → Local Storage.
+- No hay migración desde `v1`/`v2` ni desde el antiguo wizard. Al arrancar solo se lee `v3`; un estado viejo se ignora y se abre el onboarding. “Reiniciar casa” borra además `smartgota:estado:v1`, `smartgota:estado:v2` y `smartgota:wizard:v1`.
+- Sin estado `v3` válido no se siembra una casa de ejemplo: `cargarEstado()` deja el estado limpio y `iniciarApp()` abre el onboarding.
+- Si existe `v3` con `onboardingCompletado: true`, se restauran pisos, habitaciones, dispositivos y simulación.
+- El estado es un `Proxy`: cualquier cambio repinta el dashboard y guarda en un `queueMicrotask` (un solo repintado y un solo guardado por evento). No añadir listeners que luchen contra ese ciclo.
+- Si `localStorage` falla (cupo lleno/bloqueado/modo privado), se muestra un aviso discreto en pantalla y la app sigue funcionando sin guardar.
 
-## Modos de suministro de red
-Cuatro modos disponibles en el simulador de tanque:
-1. **Presión constante**: Agua entra siempre al mismo caudal.
-2. **Tandas de agua**: Agua solo en horarios específicos (ej. 06-10h y 18-22h).
-3. **Corte aleatorio**: La red se corta aleatoriamente con probabilidad configurable por hora.
-4. **Bomba con flotador**: La bomba enciende cuando el tanque baja a un nivel umbral y se apaga al 95 %.
+## Onboarding y plantillas
 
-Cada modo tiene un cuadro interactivo con información detallada accesible al hacer clic en su tarjeta.
+- `#modal-onboarding` pide: habitantes (1–50), m³ del último recibo **mensual** y perfil de vivienda (`basica`, `familiar`, `amplia`).
+- `procesarOnboarding()` valida, limpia el estado anterior y genera la casa con `generarPlantilla()`.
+- La plantilla usa las fábricas existentes (`crearPiso`, `crearHabitacion`, `agregarDispositivo`); no escribe Mapas directamente. Los dispositivos llevan `origen: 'plantilla'` y `modo: 'estandar'`.
+- Los usos por persona (ducha, inodoro, lavabo) se guardan ya multiplicados por `habitantes`; lavadora, lavavajillas, jardín y fugas son usos del hogar.
+- La capacidad del tinaco se sugiere con `capacidadParaHabitantes()`: 450 L (1–2), 750 L (3–4), 1100 L (5–6) y 2500 L (7+).
+- El recibo se interpreta como consumo mensual: `litrosDiaRecibo = reciboM3 * 1000 / Estado.diasMes` (30 días por defecto).
+
+## Dashboard
+
+- `renderDashboard()` calcula `litrosTotales()` y `resumenPorSala()`; estos siguen siendo la única fuente de verdad para el consumo.
+- La comparativa `#comparativa-recibo` usa `calcularValidacionSimas()` y muestra m³ virtuales vs m³ reales del recibo. La barra tiene estados `sin-recibo`, `vacio`, `bajo`, `ok` y `alto` (±15 %).
+- El semáforo social usa `CONFIG.refEficiente` (80), `CONFIG.litrosOMS` (100) y `CONFIG.refAlto` (180) L/persona/día.
+- “Reiniciar casa” pide confirmación con `modalConfirm()` y recarga la página con el onboarding abierto.
+
+## Simulador y tanque
+
+- Modos de suministro: `normal` (red con presión baja, 0.3 L/min, 24 h), `tandeo` (6 L/min solo de 06–10 h y 18–22 h) y `corte` (sin entrada). Se seleccionan con `[data-modo-suministro]`.
+- La bomba del tinaco toma agua de la red a 15 L/min. No hay cisterna ni segunda bomba.
+- Control de bomba: `manual` (apagada por defecto) o `auto` (arranca al 20 % y se detiene al 100 %). Se selecciona con `[data-bomba-modo]`; el encendido manual usa `#sim-bomba-toggle`.
+- La bomba se apaga sola al llenar el tinaco o si no hay suministro. En `tandeo` solo puede llenar dentro de sus franjas; en `corte` nunca.
+- Constantes: `ENTRADA_RED_NORMAL_LMIN`, `ENTRADA_RED_TANDEO_LMIN`, `CAUDAL_BOMBA_LMIN` y `LIMITE_BOMBA`.
+- Se conserva el selector de velocidad (1× a 21600×). No hay entradas técnicas de probabilidad de corte, factor de pico ni suministro extra.
+- El nivel del tanque vive en `Sim` (fuera del Proxy para no repintar a 60 fps). Cada hora simulada conserva la integral diaria de `PESOS_HORA`.
+- Con la red en presión baja el tinaco se vacía durante el uso normal; la bomba manual o automática lo recupera desde la red.
+- Al quedar el tanque vacío sin entrada de agua, la simulación se pausa y muestra `#sim-aviso-vacio` con “Seguir sin agua” y `#sim-encender-bomba`. En automático el encendido es implícito.
+- “Seguir sin agua” mantiene el tiempo avanzando con consumo real 0; los sensores también quedan en 0 hasta que vuelva el suministro.
+- El resumen de la sesión solo se abre con `#sim-finalizar`.
+- “Reiniciar simulación” (`simReiniciar()`) vuelve a llenar el tinaco, reinicia tiempo y consumo acumulado y apaga la bomba; conserva el modo de suministro y el modo de bomba.
+- `mostrarResumenSimulacion()` usa `Sim.consumoAcumulado`, no `capacidad - nivel`, porque la bomba puede rellenar durante la sesión.
+- `persistirSimulacion()` guarda nivel, tiempo, estado de marcha, `seguirSinAgua`, modo/estado de bomba y consumo acumulado al ocultar o cerrar la pestaña; al recargar se reanuda si estaba corriendo.
+
+## Sensores IoT
+
+- `renderSensores()` pinta una fila por habitación en `#sensores-lista` y actualiza `#sensores-resumen`.
+- `flujosPorHabitacion()` reparte el consumo real: fugas de forma continua y consumo humano según `PESOS_HORA`. La suma de los caudales de las habitaciones coincide con `simFlujos().consumo * 60`.
+- Estados visuales: normal, hora pico, flujo anómalo (fuga), sin suministro y sin consumo.
+- Con el tanque vacío todos los sensores muestran `0.00 L/min`; si la habitación tenía fuga, la etiqueta lo indica.
 
 ## Accesibilidad y navegación por teclado
+
+- El onboarding atrapa el foco, valida con `aria-invalid`/`role="alert"` y no se puede cerrar con Escape.
 - Los elementos de la paleta (`.item`) son focables con Tab y activables con Enter/Space.
-- Se añadieron estilos `:focus-visible` con anillo verde esmeralda para todos los elementos interactivos.
-- Se mejora el contraste de color `--tenue` (#a8c4b8) para texto secundario sobre fondo oscuro.
+- Hay estilos `:focus-visible` con anillo verde esmeralda para elementos interactivos.
+- La comparativa usa `role="progressbar"` con `aria-valuenow`/`aria-valuetext`; los sensores usan `role="status"`.
 - Al cerrar la pestaña con cambios sin guardar se muestra una advertencia del navegador.
 
-## Esquema de estado (localStorage)
-Clave: `smartgota:estado:v2`
-- `capacidad`, `habitantes`, `reciboSimas`, `pisoActivo`, `siguienteId`, `siguienteSala`, `siguientePiso`
-- `pisos`: arreglo de [id, {id, nombre}]
-- `habitaciones`: arreglo de [id, {id, nombre, piso, cs, rs}]
-- `dispositivos`: arreglo de [id, {tipo, sala, fx, fy, uso_personalizado, frecuencia, modo}]
-- `simNivel`, `simTiempo`, `simCorriendo`, `simVelocidad`, `simRed`, `simPatron`, `simFactorPico`, `simModoSuministro`
+## Esquema de estado (`localStorage`)
+
+Clave: `smartgota:estado:v3`
+
+- `version`, `onboardingCompletado`, `perfil`, `habitantes`, `reciboM3`, `capacidad`
+- `pisoActivo`, `siguienteId`, `siguienteSala`, `siguientePiso`
+- `pisos`: arreglo de `[id, {id, nombre}]`
+- `habitaciones`: arreglo de `[id, {id, nombre, piso, cx, cy, cs, rs}]`
+- `dispositivos`: arreglo de `[id, {tipo, sala, fx, fy, uso_personalizado, frecuencia, modo, origen?}]`
+- `simNivel`, `simTiempo`, `simCorriendo`, `simVelocidad`, `simModoSuministro`, `simSeguirSinAgua`
+- `simBombaModo` (`manual` | `auto`), `simBombaEncendida`, `simConsumoAcumulado`
 - `costoPorLitro`, `diasMes`
 
+## Verificación
+
+- Abrir `index.html` en el navegador y comprobar visualmente onboarding → dashboard → simulador.
+- `npm run lint` para revisar `app.js` con ESLint.
+- `npm run format:check` para revisar formateo con Prettier.
+- Comprobar la invariante de sensores: suma de caudales por habitación = consumo real de la casa.
+- Comprobar la bomba: drenaje con `normal`, llenado manual, arranque automático al 20 %, paro al 100 % y bloqueo en `corte`/fuera de tandeo.
+- Si un cambio de CSS/JS no se ve, actualizar el parámetro `?v=17` o limpiar caché del navegador.
+
 ## Gotchas
+
 - Código, comentarios y strings de UI en español.
+- No añadir migraciones desde v1/v2: el onboarding debe crear una casa limpia.
 - `localStorage` puede fallar (cupo lleno/bloqueado/modo privado): se muestra un aviso en pantalla y la app sigue funcionando sin guardar.
 - No hay código generado, migraciones, codegen ni flujo de despliegue.
