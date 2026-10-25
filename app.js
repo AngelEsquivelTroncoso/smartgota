@@ -1,6 +1,6 @@
-/* SmartGota — app.js (v17)
-   Secciones: Modelo/Estado · Dashboard · Pisos · Habitaciones · Layout (Grid Spans) · Drag & Drop · Papelera · Clones · Editor · Simulación (consumo + red) · Arranque
-   Reactividad: todo cambio en Estado (Proxy) repinta el dashboard y guarda en localStorage. */
+/* SmartGota — app.js (v18)
+   Secciones: Modelo/Estado · Resumen · Diagnóstico · Pisos · Habitaciones · Layout (Grid Spans) · Drag & Drop · Papelera · Clones · Editor · Simulación (consumo + red) · Arranque
+   Reactividad: todo cambio en Estado (Proxy) repinta el resumen/diagnóstico y guarda en localStorage. */
 'use strict';
 /* ===========================================================
    MODELO (todo por ID):
@@ -622,7 +622,7 @@ function generarRecomendacion() {
     const mesL = Math.round(litros * CONFIG.diasMes),
       mesPesos = pesos(mesL * CONFIG.costoPorLitro);
     return (
-      '💡 Acción prioritaria: Reparar la Fuga en «' +
+      'Reparar la fuga en «' +
       hab +
       '» ahorraría ' +
       mesL.toLocaleString('es-MX') +
@@ -651,7 +651,7 @@ function generarRecomendacion() {
       ahorroEcoMesL = Math.round((litros - lEco) * CONFIG.diasMes),
       ahorroEcoPesos = pesos(ahorroEcoMesL * CONFIG.costoPorLitro);
     return (
-      '💡 Recomendación: «' +
+      '«' +
       c.nombre +
       '» en «' +
       hab +
@@ -672,7 +672,7 @@ function generarRecomendacion() {
   }
 
   return (
-    '💡 Recomendación: «' +
+    '«' +
     c.nombre +
     '» en «' +
     hab +
@@ -731,7 +731,7 @@ function renderComparativa(litrosDia) {
     bloque.dataset.estado = 'sin-recibo';
     titulo.textContent = 'Sin recibo registrado';
     msg.textContent =
-      'Captura tu recibo mensual en los ajustes para comparar tu plano contra la realidad.';
+      'Agrega tu recibo mensual en el resumen de tu casa para comparar el plano contra la realidad.';
     fill.style.width = '0%';
     barra.setAttribute('aria-valuenow', '0');
     barra.setAttribute('aria-valuetext', 'Sin recibo');
@@ -772,6 +772,203 @@ function renderComparativa(litrosDia) {
   }
 }
 
+/* Resumen: el recibo se explica con una sola cifra y un estado claro. */
+function renderResumenRecibo(litrosDia) {
+  const val = calcularValidacionSimas(litrosDia);
+  const vs = $('m-vs-recibo');
+  const detalle = $('m-vs-recibo-detalle');
+  const recibo = $('m-recibo-real');
+  const dif = $('m-recibo-dif');
+
+  if (vs && detalle) {
+    delete vs.dataset.tono;
+    if (!val.activo) {
+      vs.textContent = '—';
+      detalle.textContent = 'Agrega tu recibo mensual';
+    } else if (litrosDia <= 0) {
+      vs.textContent = '—';
+      detalle.textContent = 'Tu plano aún está vacío';
+    } else {
+      const delta = val.difM3;
+      const diferencia = Math.abs(delta / Math.max(0.1, val.m3Real));
+      vs.textContent = (delta > 0 ? '+' : '') + delta.toFixed(1) + ' m³';
+      vs.dataset.tono = diferencia <= 0.15 ? 'ok' : delta > 0 ? 'alto' : 'bajo';
+      detalle.textContent =
+        val.m3Simulado.toFixed(1) + ' m³ estimados vs ' + val.m3Real.toFixed(1) + ' m³ reales';
+    }
+  }
+
+  if (recibo) {
+    recibo.textContent = val.activo ? val.m3Real.toFixed(1) + ' m³' : '—';
+  }
+
+  if (dif) {
+    delete dif.dataset.tono;
+    if (!val.activo || litrosDia <= 0) {
+      dif.textContent = '—';
+    } else {
+      const delta = val.difM3;
+      dif.textContent = (delta > 0 ? '+' : '') + delta.toFixed(1) + ' m³';
+      dif.dataset.tono =
+        Math.abs(delta / Math.max(0.1, val.m3Real)) <= 0.15 ? 'ok' : delta > 0 ? 'alto' : 'bajo';
+    }
+  }
+}
+
+/* Comparativa social: una barra y una frase, sin tres bloques de texto. */
+function renderSocial(L) {
+  const fill = $('norm-fill');
+  const valor = $('norm-valor');
+  const estado = $('norm-estado');
+  if (!fill || !valor || !estado) {
+    return;
+  }
+
+  const lHab = L / Estado.habitantes;
+  const pctNorm = Math.min((lHab / 220) * 100, 100);
+  valor.textContent = Math.round(lHab) + ' L/hab/día';
+  fill.style.width = pctNorm + '%';
+  fill.className =
+    'normativa__fill' + (lHab > CONFIG.refAlto ? ' rojo' : lHab > CONFIG.litrosOMS ? ' ambar' : '');
+
+  if (L === 0) {
+    estado.textContent = 'Referencias: eficiente 80 L · OMS 100 L · alto 180 L por persona al día.';
+  } else if (lHab <= CONFIG.refEficiente) {
+    estado.textContent = 'Estás en el nivel de un vecino eficiente de Torreón (≤ 80 L/hab/día).';
+  } else if (lHab <= CONFIG.litrosOMS) {
+    estado.textContent =
+      'Dentro del estándar OMS. Te faltan ' +
+      Math.round(lHab - CONFIG.refEficiente) +
+      ' L/hab/día para igualar al vecino eficiente.';
+  } else if (lHab <= CONFIG.refAlto) {
+    estado.textContent =
+      'Superas el límite OMS por ' +
+      Math.round(lHab - CONFIG.litrosOMS) +
+      ' L/hab/día, pero sigues debajo del promedio alto (180 L).';
+  } else {
+    estado.textContent =
+      'Superas el promedio residencial alto por ' +
+      Math.round(lHab - CONFIG.refAlto) +
+      ' L/hab/día.';
+  }
+}
+
+/* Una sola alerta contextual; la recomendación larga queda plegada. */
+function renderAlerta(L, desborde, fugas, pct) {
+  const alertaEl = $('alerta');
+  if (!alertaEl) {
+    return;
+  }
+
+  let nivel = '';
+  let titulo;
+  const lineas = [];
+
+  if (L === 0) {
+    titulo = 'Tu plano está vacío';
+    lineas.push('Añade dispositivos a las habitaciones para empezar a medir.');
+  } else if (desborde) {
+    nivel = 'critica';
+    titulo = 'Almacenamiento agotado';
+    lineas.push(
+      'El consumo diario supera la capacidad del tinaco. Revisa los usos más altos o cambia el almacenamiento.'
+    );
+  } else if (fugas.cantidad) {
+    nivel = 'riesgo';
+    titulo = 'Eficiencia comprometida';
+    lineas.push(
+      'Hay ' +
+        fugas.cantidad +
+        ' fuga(s): se pierden ' +
+        fugas.litros +
+        ' L/día (' +
+        Math.round((fugas.litros / L) * 100) +
+        ' % del consumo).'
+    );
+  } else if (L > limiteOMS()) {
+    nivel = 'riesgo';
+    titulo = 'Sobre el límite OMS';
+    lineas.push(
+      'El consumo supera los ' +
+        limiteOMS() +
+        ' L/día recomendados para ' +
+        Estado.habitantes +
+        ' persona(s).'
+    );
+  } else if (pct >= 80) {
+    nivel = 'riesgo';
+    titulo = 'Margen ajustado';
+    lineas.push('Queda poca reserva en el tinaco para el consumo estimado.');
+  } else {
+    titulo = 'Consumo dentro de los límites';
+    lineas.push('Queda reserva suficiente y se respeta el límite OMS.');
+  }
+
+  alertaEl.className = 'alerta ' + nivel;
+  alertaEl.innerHTML = '';
+  const st = document.createElement('strong');
+  st.textContent = titulo;
+  alertaEl.appendChild(st);
+  alertaEl.appendChild(document.createTextNode(lineas.join(' ')));
+
+  const recTexto = generarRecomendacion();
+  const recDetalle = $('alerta-rec-detalle');
+  const recEl = $('alerta-rec');
+  if (recDetalle && recEl) {
+    recEl.textContent = recTexto || '';
+    recDetalle.hidden = !recTexto;
+    if (!recTexto) {
+      recDetalle.open = false;
+    }
+  }
+}
+
+/* Lista breve de las habitaciones que más consumen, dentro del panel Consumo. */
+function renderTopSalas(porSala) {
+  const cont = $('diag-top-salas');
+  if (!cont) {
+    return;
+  }
+
+  cont.innerHTML = '';
+  const filas = Object.entries(porSala)
+    .filter(([, litros]) => litros > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4);
+
+  if (!filas.length) {
+    const vacio = document.createElement('p');
+    vacio.className = 'pista';
+    vacio.textContent = 'Aún no hay consumo registrado en el plano.';
+    cont.appendChild(vacio);
+    return;
+  }
+
+  const maximo = filas[0][1] || 1;
+  filas.forEach(([id, litros]) => {
+    const hab = Estado.habitaciones.get(id);
+    const fila = document.createElement('div');
+    fila.className = 'diag-top__fila';
+
+    const cab = document.createElement('div');
+    cab.className = 'diag-top__cab';
+    const nombre = document.createElement('span');
+    nombre.textContent = hab ? hab.nombre : 'Habitación';
+    const valor = document.createElement('strong');
+    valor.textContent = Math.round(litros) + ' L';
+    cab.append(nombre, valor);
+
+    const barra = document.createElement('div');
+    barra.className = 'diag-top__barra';
+    const fill = document.createElement('span');
+    fill.style.width = Math.round((litros / maximo) * 100) + '%';
+    barra.appendChild(fill);
+
+    fila.append(cab, barra);
+    cont.appendChild(fila);
+  });
+}
+
 function renderDashboard() {
   const L = litrosTotales(),
     cap = Estado.capacidad,
@@ -781,130 +978,28 @@ function renderDashboard() {
     desborde = L > cap,
     fugas = resumenFugas();
 
-  animarCifra($('m-litros'), L, (n) => Math.round(n) + ' L');
-  animarCifra($('m-costo'), costo, pesos);
-  animarCifra($('m-oms'), lim, (n) => Math.round(n) + ' L');
-  animarCifra($('m-uso-oms'), (L / lim) * 100, (n) => Math.round(n) + ' %');
-  animarCifra($('m-litros-mes'), L * CONFIG.diasMes, (n) => {
+  const setCifra = (id, valor, fmt) => {
+    const el = $(id);
+    if (el) {
+      animarCifra(el, valor, fmt);
+    }
+  };
+
+  setCifra('m-litros', L, (n) => Math.round(n) + ' L');
+  setCifra('m-costo', costo, pesos);
+  setCifra('m-costo-mes', costo * CONFIG.diasMes, pesos);
+  setCifra('m-oms', lim, (n) => Math.round(n) + ' L');
+  setCifra('m-uso-oms', (L / lim) * 100, (n) => Math.round(n) + ' %');
+  setCifra('m-litros-mes', L * CONFIG.diasMes, (n) => {
     const litrosMes = Math.round(n),
       m3Mes = (litrosMes / 1000).toFixed(1);
     return litrosMes.toLocaleString('es-MX') + ' L (' + m3Mes + ' m³)';
   });
-  animarCifra($('m-costo-mes'), costo * CONFIG.diasMes, pesos);
 
   renderComparativa(L);
-
-  // Comparativa social normativa por habitante (estilo Dropcountr)
-  const lHab = L / Estado.habitantes,
-    pctNorm = Math.min((lHab / 220) * 100, 100),
-    fillNorm = $('norm-fill');
-  $('norm-valor').textContent = Math.round(lHab) + ' L/hab/día';
-  fillNorm.style.width = pctNorm + '%';
-  fillNorm.className =
-    'normativa__fill' + (lHab > CONFIG.refAlto ? ' rojo' : lHab > CONFIG.litrosOMS ? ' ambar' : '');
-
-  if (L === 0) {
-    $('norm-estado').textContent = 'Referencias Torreón: Eficiente 80 L · OMS 100 L · Alto 180 L';
-  } else if (lHab <= CONFIG.refEficiente) {
-    $('norm-estado').textContent =
-      '🌟 Nivel vecino eficiente en Torreón (≤ 80 L/hab/día). ¡Excelente cultura hídrica!';
-  } else if (lHab <= CONFIG.litrosOMS) {
-    $('norm-estado').textContent =
-      '✅ Dentro del estándar OMS (100 L), a ' +
-      Math.round(lHab - CONFIG.refEficiente) +
-      ' L/hab de igualar al vecino eficiente (80 L).';
-  } else if (lHab <= CONFIG.refAlto) {
-    $('norm-estado').textContent =
-      '⚠️ Supera el límite OMS (+ ' +
-      Math.round(lHab - CONFIG.litrosOMS) +
-      ' L/hab), pero debajo del promedio residencial alto (180 L).';
-  } else {
-    $('norm-estado').textContent =
-      '🚨 Excede el promedio residencial alto de 180 L/hab/día en +' +
-      Math.round(lHab - CONFIG.refAlto) +
-      ' L/hab.';
-  }
-
-  $('agua').style.height = Math.min(pct, 100) + '%';
-  $('tanque-texto').innerHTML =
-    Math.round(pct) +
-    '%<small>' +
-    (desborde ? '¡Desbordado! +' + (L - cap) + ' L' : L + ' de ' + cap + ' L consumidos') +
-    '</small>';
-  $('tanque').classList.toggle('critico', desborde);
-  document.body.classList.toggle('emergencia', desborde);
-
-  const marca = $('marca-oms');
-  marca.hidden = lim >= cap;
-  marca.style.bottom = Math.min((lim / cap) * 100, 100) + '%';
-
-  let nivel = '',
-    titulo,
-    lineas = [];
-  if (L === 0) {
-    titulo = 'Plano vacío';
-    lineas.push('Arrastra dispositivos a las habitaciones e indica cuánto se usan.');
-  } else {
-    if (desborde) {
-      nivel = 'critica';
-      titulo = '⚠️ ALERTA: Almacenamiento agotado.';
-      lineas.push(
-        'Riesgo de extracción de agua profunda (Peligro de exposición a HACRE / Arsénico) en el acuífero de la Comarca Lagunera.'
-      );
-    } else if (fugas.cantidad) {
-      nivel = 'riesgo';
-      titulo = 'Eficiencia comprometida';
-    } else if (L > lim) {
-      nivel = 'riesgo';
-      titulo = 'Sobre el límite OMS';
-    } else if (pct >= 80) {
-      nivel = 'riesgo';
-      titulo = 'Margen ajustado';
-    } else {
-      titulo = 'Consumo dentro de los límites';
-    }
-
-    if (fugas.cantidad) {
-      lineas.push(
-        'Hay ' +
-          fugas.cantidad +
-          ' fuga(s): se pierden ' +
-          fugas.litros +
-          ' L/día (' +
-          Math.round((fugas.litros / L) * 100) +
-          ' % del consumo) y la eficiencia del almacenamiento está comprometida.'
-      );
-    }
-    if (L > lim) {
-      lineas.push(
-        'El consumo supera el límite OMS de ' +
-          lim +
-          ' L/día para ' +
-          Estado.habitantes +
-          ' habitante(s).'
-      );
-    }
-    if (!nivel) {
-      lineas.push('Queda ' + Math.round(100 - pct) + ' % de reserva y se respeta el límite OMS.');
-    }
-  }
-
-  // Construcción segura de #alerta + recomendación accionable
-  const alertaEl = $('alerta');
-  alertaEl.className = 'alerta ' + nivel;
-  alertaEl.innerHTML = '';
-  const st = document.createElement('strong');
-  st.textContent = titulo;
-  alertaEl.appendChild(st);
-  alertaEl.appendChild(document.createTextNode(lineas.join(' ')));
-
-  const recTexto = generarRecomendacion();
-  if (recTexto) {
-    const recEl = document.createElement('span');
-    recEl.className = 'alerta__rec';
-    recEl.textContent = recTexto;
-    alertaEl.appendChild(recEl);
-  }
+  renderResumenRecibo(L);
+  renderSocial(L);
+  renderAlerta(L, desborde, fugas, pct);
 
   // Litros por habitación (rótulo + mapa de calor) y por piso (pestaña)
   const { porSala, fugaEnSala, porPiso } = resumenPorSala();
@@ -930,6 +1025,8 @@ function renderDashboard() {
     const n = porPiso[t.dataset.piso];
     t.querySelector('small').textContent = n ? Math.round(n) + ' L' : '';
   });
+
+  renderTopSalas(porSala);
 
   if (editandoId) {
     actualizarCalculoEditor();
@@ -1809,36 +1906,64 @@ function colocarHabitacionEnCelda(salaId, cx, cy) {
   return false; // no hay sitio: se queda donde está
 }
 
+const GRUPOS_PALETA = [
+  { titulo: 'Baño', tipos: ['ducha', 'inodoro', 'lavabo', 'tina'] },
+  { titulo: 'Cocina y lavandería', tipos: ['lavadora', 'lavavajillas', 'filtro'] },
+  { titulo: 'Casa y exterior', tipos: ['grifo', 'aire', 'fuga'] },
+];
+
 function construirPaleta() {
-  for (const tipo in CATALOGO) {
-    const c = CATALOGO[tipo],
-      el = document.createElement('div');
-    el.className = 'item';
-    el.draggable = true;
-    el.tabIndex = 0;
-    el.dataset.tipo = tipo;
-    el.innerHTML =
-      '<span class="ico">' +
-      c.icono +
-      '</span><div><b>' +
-      c.nombre +
-      '</b><small>' +
-      c.flujo +
-      ' ' +
-      c.medida +
-      (c.fijo ? ' · fijo' : '') +
-      '</small></div>';
-    el.addEventListener('dragstart', (e) => empezarArrastre(e, { tipo }));
-    el.addEventListener('dragend', () => (arrastre = null));
-    el.addEventListener('click', () => seleccionarItem(seleccion === tipo ? null : tipo)); // flujo táctil
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        seleccionarItem(seleccion === tipo ? null : tipo);
+  const contenedor = $('paleta');
+  contenedor.innerHTML = '';
+
+  GRUPOS_PALETA.forEach((grupo) => {
+    const seccion = document.createElement('section');
+    seccion.className = 'paleta__grupo';
+
+    const titulo = document.createElement('h3');
+    titulo.textContent = grupo.titulo;
+    seccion.appendChild(titulo);
+
+    const items = document.createElement('div');
+    items.className = 'paleta__items';
+
+    grupo.tipos.forEach((tipo) => {
+      const c = CATALOGO[tipo];
+      if (!c) {
+        return;
       }
+
+      const el = document.createElement('div');
+      el.className = 'item';
+      el.draggable = true;
+      el.tabIndex = 0;
+      el.dataset.tipo = tipo;
+      el.innerHTML =
+        '<span class="ico">' +
+        c.icono +
+        '</span><div><b>' +
+        c.nombre +
+        '</b><small>' +
+        c.flujo +
+        ' ' +
+        c.medida +
+        (c.fijo ? ' · fijo' : '') +
+        '</small></div>';
+      el.addEventListener('dragstart', (e) => empezarArrastre(e, { tipo }));
+      el.addEventListener('dragend', () => (arrastre = null));
+      el.addEventListener('click', () => seleccionarItem(seleccion === tipo ? null : tipo)); // flujo táctil
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          seleccionarItem(seleccion === tipo ? null : tipo);
+        }
+      });
+      items.appendChild(el);
     });
-    $('paleta').appendChild(el);
-  }
+
+    seccion.appendChild(items);
+    contenedor.appendChild(seccion);
+  });
 }
 
 // Tap-to-place: 1) tocar un ítem de la paleta lo selecciona; 2) tocar una sala lo coloca al centro
@@ -1854,6 +1979,8 @@ function colocarSeleccion(e, sala) {
   if (!seleccion || e.target.closest('.clon, .sala__x, .sala__asa, .sala__rotulo, .sala__mover')) {
     return;
   }
+  // Evita que el mismo clic llegue al documento y cierre el editor recién abierto.
+  e.stopPropagation();
   const id = agregarDispositivo(seleccion, sala, 0.5, 0.5); // 0.5/0.5 = centro de la habitación
   seleccionarItem(null);
   abrirEditor(id);
@@ -2408,15 +2535,15 @@ function actualizarBomba(h = horaActualSim()) {
 const MENSAJES_SIM = {
   vacio: {
     nivel: 'critica',
-    titulo: '⚠️ Tanque vacío',
+    titulo: 'Tanque vacío',
     texto:
       'Sin agua en la vivienda. Si hay suministro, enciende la bomba o espera a que vuelva; también puedes seguir el tiempo sin agua.',
   },
   critico: {
     nivel: 'critica',
-    titulo: '⚠️ Nivel bajo: 20 % o menos',
+    titulo: 'Nivel bajo: 20 % o menos',
     texto:
-      'La bomba automática arranca al 20 %. Si está en manual, enciéndela para llenar el tinaco. No dejes la bomba encendida sin suministro.',
+      'La bomba automática arranca al 20 %. Si está en manual, enciéndela para llenar el tinaco.',
   },
   sinconsumo: {
     nivel: '',
@@ -2521,30 +2648,30 @@ function horaActualSim() {
 
 function etiquetaFranja(h) {
   if (Sim.modoSuministro === 'corte') {
-    return '🚱 Corte de agua (sin entrada)';
+    return 'Corte de agua (sin entrada)';
   }
   if (Sim.modoSuministro === 'tandeo' && !enTanda(h)) {
-    return '🕒 Fuera de tandeo';
+    return 'Fuera de tandeo';
   }
   if (h < 5) {
-    return '🌙 Madrugada (solo fugas / mín.)';
+    return 'Madrugada (solo fugas / mín.)';
   }
   if (h < 6) {
-    return '🌅 Inicio de actividad';
+    return 'Inicio de actividad';
   }
   if (h < 9) {
-    return '🚿 Hora pico matutina (2.6×)';
+    return 'Hora pico matutina (2.6×)';
   }
   if (h >= 13 && h < 15) {
-    return '☀️ Hora pico mediodía (2.1×)';
+    return 'Hora pico mediodía (2.1×)';
   }
   if (h >= 19 && h < 22) {
-    return '🌆 Hora pico nocturna (1.7×)';
+    return 'Hora pico nocturna (1.7×)';
   }
   if (h >= 22) {
-    return '🌙 Noche baja';
+    return 'Noche baja';
   }
-  return '🕒 Horario normal';
+  return 'Horario normal';
 }
 
 // Segundos simulados -> "2 d 5 h", "3 h 20 min", "12 min"
@@ -2652,7 +2779,7 @@ function renderSensores() {
       etiqueta = fila.tieneFuga ? 'Fuga detectada · sin suministro' : 'Sin suministro';
     } else if (fila.tieneFuga) {
       estado = 'anomalo';
-      etiqueta = '⚠️ Flujo anómalo continuo';
+      etiqueta = 'Flujo anómalo continuo';
       alertas++;
     } else if (fila.flujo > 0 && esHoraPico(h)) {
       estado = 'pico';
@@ -2702,6 +2829,47 @@ function actualizarAvisoVacio() {
     Sim.pausaVacio && Sim.nivel !== null && Sim.nivel <= 0 && !Sim.bombaEncendida
   );
   aviso.hidden = !mostrar;
+
+  const texto = $('sim-aviso-texto');
+  if (texto) {
+    texto.textContent =
+      Sim.bombaModo === 'auto'
+        ? 'La bomba automática arrancará cuando haya suministro. También puedes seguir el tiempo sin agua para observar el corte.'
+        : 'Si hay suministro, enciende la bomba. También puedes seguir el tiempo sin agua para observar el corte.';
+  }
+
+  // El panel de tanque vacío ya es una alerta: no duplicamos el mensaje.
+  const alerta = $('sim-alerta');
+  if (alerta) {
+    alerta.hidden = mostrar;
+  }
+}
+
+function renderEstadoSesion() {
+  const el = $('sim-estado-sesion');
+  if (!el) {
+    return;
+  }
+
+  let texto = 'Listo';
+  let estado = '';
+  if (Sim.pausaVacio) {
+    texto = 'Tanque vacío';
+    estado = 'aviso';
+  } else if (Sim.corriendo) {
+    texto = 'En marcha';
+    estado = 'activa';
+  } else if (Sim.tiempo > 0 || Sim.consumoAcumulado > 0) {
+    texto = 'En pausa';
+    estado = 'pausa';
+  }
+
+  if (el.textContent !== texto) {
+    el.textContent = texto;
+  }
+  if (el.dataset.estado !== estado) {
+    el.dataset.estado = estado;
+  }
 }
 
 function simRender() {
@@ -2762,6 +2930,7 @@ function simRender() {
 
   renderBomba();
   actualizarAvisoVacio();
+  renderEstadoSesion();
 
   // El aviso solo se reescribe al cambiar de estado (no en cada fotograma)
   if (estado !== Sim.estado) {
@@ -2843,6 +3012,7 @@ function simIniciar() {
   $('sim-play').textContent = '⏸ Pausar';
   $('sim-finalizar').hidden = false;
   renderBomba();
+  renderEstadoSesion();
   Sim.raf = requestAnimationFrame(simPaso);
 }
 
@@ -2855,6 +3025,7 @@ function simPausar() {
   $('sim-play').textContent = '▶ Iniciar';
   $('sim-finalizar').hidden = true;
   renderBomba();
+  renderEstadoSesion();
 }
 
 function simReiniciar() {
@@ -3474,52 +3645,119 @@ cargarEstado(); // restaura localStorage v3; sin datos abre el onboarding
 iniciarApp();
 sincronizarSimDesdeEstado();
 
-// Botón de ayuda (divulgación progresiva: guía bajo demanda)
+// Guía de uso: divulgación progresiva, sin saturar las pantallas.
+let ayudaRetorno = null;
+
+function ayudaTeclas(evento) {
+  if (evento.key === 'Escape') {
+    evento.preventDefault();
+    cerrarAyuda();
+    return;
+  }
+  if (evento.key === 'Tab') {
+    trapaFoco($('modal-ayuda'), evento);
+  }
+}
+
+function cerrarAyuda() {
+  const modal = $('modal-ayuda');
+  if (!modal || modal.hidden) {
+    return;
+  }
+  modal.hidden = true;
+  document.removeEventListener('keydown', ayudaTeclas);
+  if (ayudaRetorno && typeof ayudaRetorno.focus === 'function') {
+    ayudaRetorno.focus();
+  }
+}
+
 $('btn-ayuda').addEventListener('click', () => {
-  const modal = $('modal');
-  const titulo = $('modal-titulo');
-  const msg = $('modal-msg');
-  const input = $('modal-input');
-  const ok = $('modal-ok');
-  const cancelar = $('modal-cancelar');
-
-  titulo.textContent = 'Guía de uso — SmartGota';
-  msg.hidden = false;
-  msg.textContent =
-    '1. Onboarding: indica personas, recibo mensual y perfil. SmartGota crea una casa inicial con dispositivos reales.\n' +
-    '2. Constructor: arrastra dispositivos, ajusta usos y compara el consumo estimado contra tu recibo.\n' +
-    '3. Simulador: elige suministro normal, tandeo o corte; controla la bomba (manual o automática) y observa el tanque y los sensores por habitación.\n' +
-    '\nTodo se guarda automáticamente en el navegador (localStorage).';
-  input.hidden = true;
-  ok.textContent = 'Cerrar';
-  cancelar.hidden = true;
+  const modal = $('modal-ayuda');
+  if (!modal) {
+    return;
+  }
+  ayudaRetorno = $('btn-ayuda');
   modal.hidden = false;
-
-  // Cerrar con el botón "Cerrar" (sin pasar por resolverModal, que está null aquí)
-  const cerrarAyuda = () => {
-    modal.hidden = true;
-    ok.removeEventListener('click', cerrarAyuda);
-    modal.removeEventListener('click', cerrarAyudaBackdrop);
-    document.removeEventListener('keydown', cerrarAyudaEscape);
-    $('btn-ayuda').focus();
-  };
-  const cerrarAyudaBackdrop = (e) => {
-    if (e.target === modal) {
-      cerrarAyuda();
-    }
-  };
-  const cerrarAyudaEscape = (e) => {
-    if (e.key === 'Escape') {
-      cerrarAyuda();
-    }
-  };
-  ok.addEventListener('click', cerrarAyuda, { once: true });
-  modal.addEventListener('click', cerrarAyudaBackdrop);
-  document.addEventListener('keydown', cerrarAyudaEscape);
-  queueMicrotask(() => ok.focus());
+  document.addEventListener('keydown', ayudaTeclas);
+  queueMicrotask(() => $('modal-ayuda-cerrar').focus());
 });
 
-// Pestañas de vista avanzada: alternar entre constructor y simulador.
+$('modal-ayuda-cerrar').addEventListener('click', cerrarAyuda);
+$('modal-ayuda-ok').addEventListener('click', cerrarAyuda);
+$('modal-ayuda').addEventListener('click', (e) => {
+  if (e.target === $('modal-ayuda')) {
+    cerrarAyuda();
+  }
+});
+
+// Pestañas internas del diagnóstico: un solo panel visible a la vez.
+function mostrarPanelDiagnostico(nombre) {
+  const paneles = {
+    consumo: $('diag-consumo'),
+    recibo: $('diag-recibo'),
+    social: $('diag-social'),
+  };
+  if (!paneles[nombre]) {
+    return;
+  }
+
+  document.querySelectorAll('[data-diag]').forEach((tab) => {
+    const activo = tab.dataset.diag === nombre;
+    tab.classList.toggle('activa', activo);
+    tab.setAttribute('aria-selected', activo ? 'true' : 'false');
+  });
+
+  Object.entries(paneles).forEach(([clave, panel]) => {
+    panel.hidden = clave !== nombre;
+  });
+
+  if (nombre === 'consumo') {
+    requestAnimationFrame(() => renderDashboard());
+  }
+}
+
+document.querySelectorAll('[data-diag]').forEach((tab) => {
+  tab.addEventListener('click', () => mostrarPanelDiagnostico(tab.dataset.diag));
+});
+
+// Menú de acciones secundarias.
+const btnAcciones = $('btn-acciones');
+const menuAcciones = $('menu-acciones');
+
+function cerrarMenuAcciones() {
+  if (!btnAcciones || !menuAcciones) {
+    return;
+  }
+  menuAcciones.hidden = true;
+  btnAcciones.setAttribute('aria-expanded', 'false');
+}
+
+if (btnAcciones && menuAcciones) {
+  btnAcciones.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const abrir = menuAcciones.hidden;
+    menuAcciones.hidden = !abrir;
+    btnAcciones.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.menu-acciones')) {
+      cerrarMenuAcciones();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !menuAcciones.hidden) {
+      cerrarMenuAcciones();
+      btnAcciones.focus();
+    }
+  });
+  menuAcciones.querySelectorAll('button').forEach((btn) => {
+    btn.addEventListener('click', cerrarMenuAcciones);
+  });
+}
+
+$('btn-ir-simulador').addEventListener('click', () => mostrarVistaAvanzada('simulador'));
+
+// Pestañas de vista avanzada: alternar entre Mi casa y Simulador.
 // mostrarVistaAvanzada() también recalcula el layout oculto al entrar.
 document.querySelectorAll('.vista-tab').forEach((tab) => {
   tab.addEventListener('click', () => mostrarVistaAvanzada(tab.dataset.vista));
