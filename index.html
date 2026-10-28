@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0b1210" />
     <title>SmartGota — Calcula tu consumo de agua</title>
-    <link rel="stylesheet" href="styles.css?v=19" />
+    <link rel="stylesheet" href="styles.css?v=40" />
   </head>
   <body>
     <header class="cabecera">
@@ -57,7 +57,6 @@
             <div>
               <p class="eyebrow">Tu casa</p>
               <h2 id="resumen-titulo">Resumen de consumo</h2>
-              <p class="pista">Ajusta los datos base y revisa lo que consume tu plano.</p>
             </div>
             <button class="btn-sim btn-sim--principal" id="btn-ir-simulador" type="button">
               Simular el día →
@@ -96,45 +95,26 @@
               </select>
             </label>
 
-            <details class="ajustes-avanzados">
-              <summary>Tarifa y periodo</summary>
-              <div class="ajustes-grid">
-                <label for="costo-litro">
-                  Costo por litro (MXN)
-                  <input
-                    type="number"
-                    id="costo-litro"
-                    min="0"
-                    max="10"
-                    step="0.001"
-                    value="0.025"
-                  />
-                </label>
-                <label for="dias-mes">
-                  Días por mes
-                  <input type="number" id="dias-mes" min="1" max="31" step="1" value="30" />
-                </label>
-              </div>
-            </details>
+            <div class="kpis-resumen" aria-label="Indicadores principales">
+              <article class="kpi kpi--principal">
+                <span>Consumo diario</span>
+                <strong id="m-litros">0 L</strong>
+                <small id="m-litros-mes-corta">aún sin dispositivos</small>
+              </article>
+              <article class="kpi">
+                <span>Vs. tu recibo</span>
+                <strong id="m-vs-recibo">—</strong>
+                <small id="m-vs-recibo-detalle">Agrega tu recibo mensual</small>
+              </article>
+            </div>
           </div>
 
-          <div class="kpis-resumen" aria-label="Indicadores principales">
-            <article class="kpi">
-              <span>Consumo diario</span>
-              <strong id="m-litros">0 L</strong>
-              <small>según tu plano</small>
-            </article>
-            <article class="kpi">
-              <span>Vs. tu recibo</span>
-              <strong id="m-vs-recibo">—</strong>
-              <small id="m-vs-recibo-detalle">Agrega tu recibo mensual</small>
-            </article>
-            <article class="kpi">
-              <span>Costo mensual</span>
-              <strong id="m-costo-mes">$0.00</strong>
-              <small>con la tarifa configurada</small>
-            </article>
-          </div>
+          <p class="kpi-fugas" id="kpi-fugas">
+            <span class="kpi-fugas__punto" aria-hidden="true"></span>
+            <span>Pérdida por fugas</span>
+            <strong id="m-fugas">0 L/día</strong>
+            <small id="m-fugas-detalle">sin fugas en el plano</small>
+          </p>
         </section>
 
         <div class="app-grid">
@@ -218,6 +198,21 @@
             role="tabpanel"
             aria-labelledby="tab-diag-consumo"
           >
+            <div class="metricas secundarias">
+              <div class="mini">
+                <strong id="m-oms">0 L</strong>
+                <span>Referencia OMS diaria</span>
+              </div>
+              <div class="mini">
+                <strong id="m-uso-oms">0 %</strong>
+                <span>De la referencia OMS</span>
+              </div>
+              <div class="mini">
+                <strong id="m-litros-mes">0 L (0 m³)</strong>
+                <span>Consumo mensual</span>
+              </div>
+            </div>
+
             <div class="diag-consumo__grid">
               <div class="grafico">
                 <canvas
@@ -230,22 +225,8 @@
                 </div>
               </div>
               <div class="diag-consumo__lado">
-                <div class="metricas secundarias">
-                  <div class="mini">
-                    <strong id="m-oms">0 L</strong>
-                    <span>Límite OMS diario</span>
-                  </div>
-                  <div class="mini">
-                    <strong id="m-uso-oms">0 %</strong>
-                    <span>Del límite OMS usado</span>
-                  </div>
-                  <div class="mini">
-                    <strong id="m-litros-mes">0 L (0 m³)</strong>
-                    <span>Consumo mensual</span>
-                  </div>
-                </div>
                 <div class="diag-top">
-                  <h3>Habitaciones con más consumo</h3>
+                  <h3>Consumo por habitación</h3>
                   <div id="diag-top-salas"></div>
                 </div>
               </div>
@@ -290,8 +271,8 @@
             </div>
             <div class="metricas metricas--recibo">
               <div class="mini">
-                <strong id="m-costo">$0.00</strong>
-                <span>Costo diario</span>
+                <strong id="m-no-explicada">—</strong>
+                <span>Agua no explicada</span>
               </div>
               <div class="mini">
                 <strong id="m-recibo-real">—</strong>
@@ -328,7 +309,7 @@
                 <span
                   class="normativa__marca normativa__marca--oms"
                   style="left: 45.45%"
-                  title="Límite OMS: 100 L/hab/día"
+                  title="Referencia OMS: 100 L/hab/día"
                 >
                   <i>OMS 100</i>
                 </span>
@@ -385,133 +366,156 @@
               <h2 id="sim-titulo">Un día en tu casa</h2>
             </div>
             <div class="sim__sesion">
-              <span class="sim__estado" id="sim-estado-sesion" role="status">Listo</span>
-              <span class="sim__reloj" id="sim-m-tiempo">Día 1 · 00:00</span>
-              <label class="sim__velocidad" for="sim-vel">
-                Velocidad
-                <select id="sim-vel">
-                  <option value="1">1×</option>
-                  <option value="60">60×</option>
-                  <option value="600">600×</option>
-                  <option value="3600" selected>3600×</option>
-                  <option value="21600">21600×</option>
-                </select>
-              </label>
-              <button class="btn-sim btn-sim--principal" id="sim-play" type="button">
-                ▶ Iniciar
-              </button>
-              <button class="btn-sim btn-sim--sec" id="sim-reset" type="button">↺ Reiniciar</button>
-              <button class="btn-sim btn-sim--finalizar" id="sim-finalizar" type="button" hidden>
-                Finalizar
-              </button>
+              <div class="sim__sesion-lectura">
+                <span class="sim__estado" id="sim-estado-sesion" role="status">Listo</span>
+                <span class="sim__reloj" id="sim-m-tiempo">Día 1 · 00:00</span>
+              </div>
+              <div class="sim__sesion-acciones">
+                <label class="sim__velocidad" for="sim-vel">
+                  Velocidad
+                  <select id="sim-vel">
+                    <option value="1">1×</option>
+                    <option value="60">60×</option>
+                    <option value="600">600×</option>
+                    <option value="3600" selected>3600×</option>
+                    <option value="21600">21600×</option>
+                  </select>
+                </label>
+                <button class="btn-sim btn-sim--principal" id="sim-play" type="button">
+                  ▶ Iniciar
+                </button>
+                <button class="btn-sim btn-sim--sec" id="sim-reset" type="button">
+                  ↺ Reiniciar
+                </button>
+                <button class="btn-sim btn-sim--finalizar" id="sim-finalizar" type="button" hidden>
+                  Finalizar
+                </button>
+              </div>
             </div>
           </div>
 
           <div class="sim__cuerpo">
-            <div class="tanque tanque--sim" id="sim-tanque">
-              <div class="agua" id="sim-agua"></div>
-              <div class="zona-riesgo"></div>
-              <div class="marca-oms marca-limite">
-                <span>Riesgo 20 %</span>
+            <div class="sim__tanque-col">
+              <div class="tanque tanque--sim" id="sim-tanque">
+                <div class="agua" id="sim-agua"></div>
+                <div class="zona-riesgo"></div>
+                <div class="tanque__marcas" aria-hidden="true"></div>
+                <div class="marca-oms marca-limite">
+                  <span>20 %</span>
+                </div>
+                <div class="tanque__texto">
+                  <span id="sim-pct">100%</span>
+                </div>
               </div>
-              <div class="tanque__texto">
-                <span id="sim-pct">100%</span>
-                <small id="sim-litros"></small>
+              <div class="sim-hud">
+                <div class="sim-hud__fila">
+                  <span>Nivel</span><strong id="sim-m-nivel">0 L</strong>
+                </div>
+                <div class="sim-hud__fila">
+                  <span>Consumo</span><strong id="sim-m-consumo">0 L/min</strong>
+                </div>
+                <div class="sim-hud__fila">
+                  <span>Entrada</span><strong id="sim-m-entrada">0 L/min</strong>
+                </div>
               </div>
             </div>
 
             <div class="sim__panel">
-              <div class="sim__fila">
-                <section class="sim__bloque" aria-labelledby="sim-suministro-titulo">
-                  <span class="sim__etiqueta" id="sim-suministro-titulo">Suministro</span>
-                  <div class="sim__modos" role="group" aria-label="Modo de suministro de agua">
-                    <button
-                      type="button"
-                      class="modo-suministro activo"
-                      data-modo-suministro="normal"
-                      aria-pressed="true"
-                    >
-                      Normal
-                    </button>
-                    <button
-                      type="button"
-                      class="modo-suministro"
-                      data-modo-suministro="tandeo"
-                      aria-pressed="false"
-                    >
-                      Tandeo
-                    </button>
-                    <button
-                      type="button"
-                      class="modo-suministro"
-                      data-modo-suministro="corte"
-                      aria-pressed="false"
-                    >
-                      Corte
-                    </button>
-                  </div>
-                  <p class="sim__franja" id="sim-m-franja">Tiempo simulado</p>
-                </section>
-
-                <section class="sim__bloque sim__bomba" aria-labelledby="sim-bomba-titulo">
-                  <div class="sim__bomba-cab">
-                    <div>
-                      <span class="sim__etiqueta" id="sim-bomba-titulo">Bomba del tinaco</span>
-                      <strong
-                        class="sim__bomba-estado"
-                        id="sim-bomba-estado"
-                        role="status"
-                        aria-live="polite"
-                        >Manual · apagada</strong
-                      >
-                    </div>
-                    <div class="segmentado" role="group" aria-label="Control de la bomba">
+              <section class="sim__banda" aria-label="Controles de la simulación">
+                <div class="sim__banda-fila">
+                  <div class="sim__seg">
+                    <span class="sim__etiqueta" id="sim-suministro-titulo">Suministro</span>
+                    <div class="sim__modos" role="group" aria-label="Modo de suministro de agua">
                       <button
                         type="button"
-                        class="bomba-modo activo"
-                        data-bomba-modo="manual"
+                        class="modo-suministro activo"
+                        data-modo-suministro="normal"
                         aria-pressed="true"
                       >
-                        Manual
+                        Normal
                       </button>
                       <button
                         type="button"
-                        class="bomba-modo"
-                        data-bomba-modo="auto"
+                        class="modo-suministro"
+                        data-modo-suministro="tandeo"
                         aria-pressed="false"
                       >
-                        Auto
+                        Tandeo
+                      </button>
+                      <button
+                        type="button"
+                        class="modo-suministro"
+                        data-modo-suministro="corte"
+                        aria-pressed="false"
+                      >
+                        Corte
                       </button>
                     </div>
                   </div>
-                  <div class="sim__bomba-acciones">
-                    <button class="btn-sim btn-sim--sec" id="sim-bomba-toggle" type="button">
-                      Encender bomba
-                    </button>
-                    <span class="sim__pista">15 L/min · arranque al 20 %</span>
+
+                  <div class="sim__seg">
+                    <div class="sim__control-cab">
+                      <label class="sim__switch">
+                        <input type="checkbox" id="sim-bomba-activa" checked />
+                        <span id="sim-bomba-titulo">Bomba automática</span>
+                      </label>
+                      <button
+                        type="button"
+                        class="sim__ayuda-btn"
+                        id="sim-bomba-ayuda"
+                        data-nota="sim-bomba-nota"
+                        aria-expanded="false"
+                        aria-controls="sim-bomba-nota"
+                        aria-label="Cómo funciona la bomba del tinaco"
+                      >
+                        ?
+                      </button>
+                    </div>
+                    <strong
+                      class="sim__bomba-estado"
+                      id="sim-bomba-estado"
+                      role="status"
+                      aria-live="polite"
+                      >Apagada</strong
+                    >
                   </div>
-                  <p class="sim__bomba-ayuda" id="sim-bomba-ayuda">
-                    Enciéndela para llenar el tinaco; se apaga al llenarlo o si falta el suministro.
-                  </p>
-                </section>
-              </div>
 
-              <div class="metricas sim-metricas">
-                <div class="mini principal">
-                  <strong id="sim-m-nivel">0 L</strong>
-                  <span>Nivel actual</span>
+                  <div class="sim__seg">
+                    <div class="sim__control-cab">
+                      <label class="sim__switch">
+                        <input type="checkbox" id="sim-fugas-activo" checked />
+                        <span id="sim-fugas-titulo">Fugas sorpresa</span>
+                      </label>
+                      <button
+                        type="button"
+                        class="sim__ayuda-btn"
+                        id="sim-fugas-ayuda"
+                        data-nota="sim-fugas-nota"
+                        aria-expanded="false"
+                        aria-controls="sim-fugas-nota"
+                        aria-label="Cómo funcionan las fugas sorpresa"
+                      >
+                        ?
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div class="mini principal">
-                  <strong id="sim-m-consumo">0 L/min</strong>
-                  <span>Consumo casa</span>
-                </div>
-                <div class="mini principal">
-                  <strong id="sim-m-entrada">0 L/min</strong>
-                  <span>Entrada al tinaco</span>
-                </div>
-              </div>
 
-              <div class="alerta" id="sim-alerta" role="status" aria-live="polite"></div>
+                <p class="sim__franja" id="sim-m-franja">Tiempo simulado</p>
+
+                <p class="sim__control-nota" id="sim-bomba-nota" hidden>
+                  La bomba toma agua de la red a 15 L/min: arranca cuando el tinaco baja al 20 % y
+                  se detiene al llenarse. Si la apagas, el tinaco solo se llena con la presión de la
+                  red.
+                </p>
+                <p class="sim__control-nota" id="sim-fugas-nota" hidden>
+                  Al activarlas, la simulación esconde una o dos fugas en aparatos al azar. Cada
+                  corrida usa aparatos distintos: delátalas en los sensores y en el resumen final.
+                  Desactívalas para una simulación limpia.
+                </p>
+              </section>
+
+              <div class="alerta" id="sim-alerta" role="status" aria-live="polite" hidden></div>
 
               <div class="sim__aviso-vacio" id="sim-aviso-vacio" role="alert" hidden>
                 <strong>Tanque vacío. Sin agua en la vivienda.</strong>
@@ -521,7 +525,7 @@
                 </p>
                 <div class="sim__aviso-acciones">
                   <button class="btn-sim btn-sim--principal" id="sim-encender-bomba" type="button">
-                    Encender bomba
+                    Activar bomba
                   </button>
                   <button class="btn-sim btn-sim--sec" id="sim-seguir-sin-agua" type="button">
                     Seguir sin agua
@@ -569,10 +573,50 @@
     >
       <form class="modal__caja onboarding__caja" id="onboarding-form" novalidate>
         <span class="onboarding__eyebrow">El detective del agua</span>
-        <h3 class="modal__titulo" id="onboarding-titulo">Empecemos por tu recibo</h3>
+        <h3 class="modal__titulo" id="onboarding-titulo">Empecemos por tu casa</h3>
         <p class="onboarding__desc" id="onboarding-desc">
-          Tres datos y listo. Todo queda en tu navegador.
+          Elige cómo es tu vivienda y ajusta los datos. Todo queda en tu navegador.
         </p>
+
+        <fieldset
+          class="onboarding__perfiles"
+          id="onb-perfiles"
+          aria-describedby="onb-perfil-error"
+        >
+          <legend>¿Cómo es tu vivienda?</legend>
+          <p class="onboarding__ayuda">
+            El tamaño define la casa inicial y los promedios de consumo. Después puedes mover o
+            agregar dispositivos; no necesitas medir minutos, cargas ni descargas.
+          </p>
+          <div class="onboarding__opciones">
+            <label class="perfil-opcion">
+              <input type="radio" name="onb-perfil" value="bajo" checked />
+              <span class="perfil-opcion__caja">
+                <strong>Compacta</strong>
+                <small>1 baño, cocina y lo esencial. Partimos de 2 personas.</small>
+              </span>
+            </label>
+            <label class="perfil-opcion">
+              <input type="radio" name="onb-perfil" value="medio" />
+              <span class="perfil-opcion__caja">
+                <strong>Estándar</strong>
+                <small>2 baños, cocina y lavandería. Partimos de 4 personas.</small>
+              </span>
+            </label>
+            <label class="perfil-opcion">
+              <input type="radio" name="onb-perfil" value="alto" />
+              <span class="perfil-opcion__caja">
+                <strong>Amplia</strong>
+                <small
+                  >3 baños, cocina equipada, lavandería y jardín. Partimos de 5 personas.</small
+                >
+              </span>
+            </label>
+          </div>
+          <p class="campo__error" id="onb-perfil-error" role="alert" hidden>
+            Elige el tamaño de tu vivienda.
+          </p>
+        </fieldset>
 
         <div class="campo">
           <label for="onb-habitantes">¿Cuántas personas viven en la casa?</label>
@@ -584,8 +628,9 @@
             step="1"
             value="4"
             inputmode="numeric"
-            aria-describedby="onb-habitantes-error"
+            aria-describedby="onb-habitantes-ayuda onb-habitantes-error"
           />
+          <small id="onb-habitantes-ayuda">Se ajusta al tamaño elegido; puedes cambiarlo.</small>
           <p class="campo__error" id="onb-habitantes-error" role="alert" hidden>
             Escribe un número entero entre 1 y 50.
           </p>
@@ -608,43 +653,6 @@
             Escribe un consumo mensual mayor que 0 y menor o igual a 999 m³.
           </p>
         </div>
-
-        <fieldset
-          class="onboarding__perfiles"
-          id="onb-perfiles"
-          aria-describedby="onb-perfil-error"
-        >
-          <legend>Perfil de vivienda</legend>
-          <p class="onboarding__ayuda">
-            Solo se usa para crear tu casa inicial. Después puedes ajustar todo.
-          </p>
-          <div class="onboarding__opciones">
-            <label class="perfil-opcion">
-              <input type="radio" name="onb-perfil" value="basica" checked />
-              <span class="perfil-opcion__caja">
-                <strong>Básica</strong>
-                <small>1 baño, cocina y lo esencial.</small>
-              </span>
-            </label>
-            <label class="perfil-opcion">
-              <input type="radio" name="onb-perfil" value="familiar" />
-              <span class="perfil-opcion__caja">
-                <strong>Familiar</strong>
-                <small>2 baños, cocina y lavandería.</small>
-              </span>
-            </label>
-            <label class="perfil-opcion">
-              <input type="radio" name="onb-perfil" value="amplia" />
-              <span class="perfil-opcion__caja">
-                <strong>Amplia</strong>
-                <small>3 baños, cocina equipada, lavandería y jardín.</small>
-              </span>
-            </label>
-          </div>
-          <p class="campo__error" id="onb-perfil-error" role="alert" hidden>
-            Elige un perfil de vivienda.
-          </p>
-        </fieldset>
 
         <button class="btn-sim btn-sim--principal onboarding__enviar" type="submit">
           Crear mi casa y empezar
@@ -676,13 +684,23 @@
             <span>Tiempo transcurrido</span>
           </div>
           <div class="resumen__kpi">
-            <strong id="resumen-costo">$0.00</strong>
-            <span>Costo estimado (MXN)</span>
+            <strong id="resumen-fugas">0 L/día</strong>
+            <span>Agua perdida en fugas</span>
           </div>
           <div class="resumen__kpi">
             <strong id="resumen-uso-oms">0 %</strong>
-            <span>Del límite OMS usado</span>
+            <span>De la referencia OMS</span>
           </div>
+        </div>
+        <div class="resumen__detalle resumen__fugas-bloque">
+          <h4 class="resumen__subtitulo">Fugas de la sesión</h4>
+          <p class="resumen__fugas-resumen" id="resumen-fugas-resumen">
+            Sin fugas sorpresa en esta corrida.
+          </p>
+          <ul class="resumen__fugas-lista" id="resumen-fugas-lista"></ul>
+          <button type="button" class="btn-sim btn-sim--sec" id="resumen-ver-plano" hidden>
+            Ver en el plano
+          </button>
         </div>
         <div class="resumen__detalle">
           <h4 class="resumen__subtitulo">Consumo por habitación</h4>
@@ -724,8 +742,9 @@
           <section>
             <h4>1. Arma tu casa</h4>
             <p>
-              Elige un dispositivo de la lista y colócalo en una habitación. Toca un dispositivo
-              para ajustar minutos, descargas o frecuencia.
+              Elige un dispositivo de la lista y colócalo en una habitación. SmartGota estima su
+              consumo con promedios de tu nivel; toca el dispositivo para ver el cálculo y cambiar
+              su eficiencia.
             </p>
           </section>
           <section>
@@ -764,27 +783,14 @@
       </div>
     </div>
 
-    <div class="editor" id="editor" hidden>
+    <div class="editor" id="editor" hidden tabindex="-1">
       <b id="ed-nombre"></b>
-      <div id="ed-grupo-modo">
-        <label for="ed-modo">Modalidad / Eficiencia</label>
+      <small class="editor__nota" id="ed-nota"></small>
+      <p id="ed-calculo" aria-live="polite"></p>
+      <div id="ed-grupo-modo" hidden>
+        <label for="ed-modo">Eficiencia del dispositivo</label>
         <select id="ed-modo"></select>
       </div>
-      <div class="editor__fila">
-        <div>
-          <label for="ed-uso" id="ed-etiqueta"></label>
-          <input type="number" id="ed-uso" min="0" max="999" step="1" />
-        </div>
-        <div>
-          <label for="ed-frecuencia">Frecuencia</label>
-          <select id="ed-frecuencia">
-            <option value="dia">Al día</option>
-            <option value="semana">A la semana</option>
-          </select>
-        </div>
-      </div>
-      <button type="button" class="ed-hab" id="ed-btn-hab" hidden></button>
-      <p id="ed-calculo"></p>
     </div>
 
     <div class="papelera" id="papelera" aria-hidden="true">
@@ -802,7 +808,50 @@
       defer
       onerror="window.__cdnError('jspdf')"
     ></script>
-    <script src="app.js?v=19" defer></script>
+    <script src="app.js?v=40" defer></script>
+
+    <div
+      class="modal"
+      id="modal-sala"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sala-titulo"
+    >
+      <form class="modal__caja modal__caja--sala" id="sala-form">
+        <h3 class="modal__titulo" id="sala-titulo">Nueva habitación</h3>
+        <p class="modal__msg" id="sala-msg"></p>
+
+        <fieldset class="sala-campo">
+          <legend>Tipo de habitación</legend>
+          <div class="sala-tipos" id="sala-tipos"></div>
+        </fieldset>
+
+        <div class="campo">
+          <label for="sala-nombre">Nombre</label>
+          <input
+            type="text"
+            id="sala-nombre"
+            maxlength="28"
+            autocomplete="off"
+            aria-describedby="sala-nombre-pista"
+          />
+          <small id="sala-nombre-pista">
+            Puedes personalizarlo. El tipo es lo que cuenta para el cálculo.
+          </small>
+        </div>
+
+        <fieldset class="sala-campo">
+          <legend id="sala-roles-leyenda">Rol de la habitación</legend>
+          <div class="sala-tipos sala-tipos--roles" id="sala-roles-opciones"></div>
+        </fieldset>
+
+        <div class="modal__acciones">
+          <button type="button" class="btn-sim btn-sim--sec" id="sala-cancelar">Cancelar</button>
+          <button type="submit" class="btn-sim btn-sim--principal" id="sala-ok">Añadir</button>
+        </div>
+      </form>
+    </div>
 
     <div
       class="modal"
