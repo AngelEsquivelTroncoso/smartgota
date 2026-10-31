@@ -822,18 +822,6 @@ input:focus {
   background: var(--rojo);
 }
 
-#m-vs-recibo[data-tono='ok'] {
-  color: var(--esm);
-}
-
-#m-vs-recibo[data-tono='bajo'] {
-  color: var(--ambar);
-}
-
-#m-vs-recibo[data-tono='alto'] {
-  color: var(--rojo);
-}
-
 .diagnostico {
   margin-top: 16px;
 }
@@ -844,35 +832,6 @@ input:focus {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--e-16);
-}
-
-.diag-tabs {
-  display: inline-flex;
-  padding: var(--e-4);
-  background: var(--fondo);
-  border: 1px solid var(--borde);
-  border-radius: var(--r-10);
-}
-
-.diag-tab {
-  padding: var(--e-8) var(--e-12);
-  color: var(--tenue);
-  font: inherit;
-  font-size: var(--t-xs);
-  font-weight: 600;
-  background: transparent;
-  border: 0;
-  border-radius: var(--r-8);
-  cursor: pointer;
-}
-
-.diag-tab:hover {
-  color: var(--texto);
-}
-
-.diag-tab.activa {
-  color: var(--esm);
-  background: rgba(52, 211, 153, 0.13);
 }
 
 .diagnostico__alerta {
