@@ -3,3 +3,4 @@ package-lock.json
 *.pdf
 .DS_Store
 .atl/
+.codegraph/
