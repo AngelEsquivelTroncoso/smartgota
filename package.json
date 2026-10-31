@@ -5,10 +5,11 @@
   "private": true,
   "scripts": {
     "start": "echo 'Abrir index.html directamente en el navegador (file:// funciona; no hay servidor que levantar).'",
-    "lint": "eslint app.js",
-    "lint:fix": "eslint app.js --fix",
-    "format": "prettier --write app.js styles.css index.html",
-    "format:check": "prettier --check app.js styles.css index.html"
+    "lint": "eslint app.js dominio.js",
+    "lint:fix": "eslint app.js dominio.js --fix",
+    "test": "node --test",
+    "format": "prettier --write app.js dominio.js styles.css index.html",
+    "format:check": "prettier --check app.js dominio.js styles.css index.html"
   },
   "devDependencies": {
     "eslint": "^8.57.0",
@@ -25,10 +26,34 @@
     "extends": "eslint:recommended",
     "globals": {
       "Chart": "readonly",
-      "jspdf": "readonly"
+      "jspdf": "readonly",
+      "module": "readonly"
     },
+    "overrides": [
+      {
+        "files": [
+          "dominio.test.js"
+        ],
+        "env": {
+          "node": true
+        }
+      },
+      {
+        "files": [
+          "app.js"
+        ],
+        "globals": {
+          "SmartGotaDominio": "readonly"
+        }
+      }
+    ],
     "rules": {
-      "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+      "no-unused-vars": [
+        "warn",
+        {
+          "argsIgnorePattern": "^_"
+        }
+      ],
       "no-alert": "warn"
     }
   }

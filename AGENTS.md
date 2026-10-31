@@ -2,17 +2,26 @@
 
 ## Qué es
 
-Proyecto web estático único: `index.html` + `styles.css` + `app.js` (todo en español). Simulador de consumo de agua de una vivienda, ahora planteado como **“El Detective del Agua”**: onboarding express, plantilla inicial según tamaño de vivienda, promedios automáticos de consumo, constructor de planos, simulación del tanque y sensores virtuales por habitación. No es monorepo, no hay paso de build, tests, tipado ni CI. `package.json` solo contiene ESLint/Prettier de desarrollo; no se necesita para ejecutar la app.
+Proyecto web estático único: `index.html` + `styles.css` + `dominio.js` + `app.js` (todo en español). Simulador de consumo de agua de una vivienda, ahora planteado como **“El Detective del Agua”**: onboarding express, plantilla inicial según tamaño de vivienda, promedios automáticos de consumo, constructor de planos, simulación del tanque y sensores virtuales por habitación. No es monorepo, no hay paso de build, tipado ni CI. `package.json` solo contiene ESLint/Prettier y el runner de tests de Node; no se necesita para ejecutar la app.
 
 ## Cómo ejecutar
 
 - Abrir `index.html` directamente en el navegador (`file://` funciona; no hay servidor que levantar).
 - Internet necesario solo para el gráfico (Chart.js 4.4.4) y la exportación PDF (jspdf 2.5.1), cargados desde CDN en `<script defer>`. El resto funciona sin conexión.
-- Herramientas de desarrollo (opcional): `npm install` para instalar ESLint/Prettier; `npm run lint` / `npm run lint:fix` para analizar `app.js`; `npm run format` / `npm run format:check` para formatear código.
+- Herramientas de desarrollo (opcional): `npm install` para instalar ESLint/Prettier; `npm run lint` / `npm run lint:fix` para analizar `app.js` y `dominio.js`; `npm test` para los tests del núcleo; `npm run format` / `npm run format:check` para formatear código.
+
+## Núcleo de cálculo (`dominio.js`)
+
+- `dominio.js` es el modelo puro: `CATALOGO`, `TASAS_FUGA`, `PROMEDIOS`, `TIPOS_SALA`, `ROLES_SALA`, `PESO_ROL` y las funciones `baseUso`, `repartirCuota`, `flujoDe`, `litrosConFlujo`, `normalizarCasoFuga` y `generarCasoFuga`. No toca el DOM ni lee `Estado`; el perfil y los habitantes llegan por parámetro (`ctx`).
+- Se carga como **script clásico** antes de `app.js` y expone `SmartGotaDominio`; `app.js` lo desestructura al principio. NO convertir esto a `import`/`export`: los ES modules están bloqueados por CORS con origen `null` y romperían abrir `index.html` con doble clic (`file://`).
+- `baseUso(tipo, habitacion, ctx)` ya no recibe un id de sala: `app.js` lo envuelve en `usoPromedio()` y le pasa `Estado.habitaciones.get(sala)` + `contextoPerfil()`. Si agregás un cálculo nuevo que dependa de la vivienda, pasalo por `ctx` en lugar de leer `Estado` desde el dominio.
+- `repartirCuota(total, pesos)` es la regla de “una cuota por uso”: reparto entero con el resto a la mayor fracción. `recalcularUsosPorNivel()` la usa; no volver a escribir el reparto inline.
+- `generarCasoFuga(codigo, elegibles)` recibe la lista de ids elegibles (`idsElegiblesFuga()` en `app.js`), así el sorteo sigue siendo determinista y testeable.
+- Los tests viven en `dominio.test.js` y corren con `npm test` (`node --test`, sin dependencias). Cubren el reparto 3:1, la invariante de que la cuota no se pierde, el crecimiento por habitantes, el aire como carga puntual, el reparto entero y la hora de la fuga entre 08:00 y 18:00.
 
 ## Arranque y navegación
 
-- Punto de entrada: `index.html`; el script es `app.js?v=48` (defer). Assets con `?v=48`.
+- Punto de entrada: `index.html`; los scripts son `dominio.js?v=49` y después `app.js?v=49`, ambos `defer`. Assets con `?v=49`.
 - Arranque: `construirPaleta(); cargarEstado(); iniciarApp(); sincronizarSimDesdeEstado();`.
 - No hay modo básico ni asistente de 3 pasos. La app abre directamente la vista “Mi casa”; si no hay onboarding completado, `iniciarApp()` muestra `#modal-onboarding`.
 - `#vistas-avanzadas` alterna entre “Mi casa” (`#vista-constructor`) y “Simulador” (`#vista-simulador`) con `mostrarVistaAvanzada()`.
@@ -160,7 +169,8 @@ Clave: `smartgota:estado:v3`
 ## Verificación
 
 - Abrir `index.html` en el navegador y comprobar visualmente onboarding → “Mi casa” → diagnóstico → simulador.
-- `npm run lint` para revisar `app.js` con ESLint.
+- `npm run lint` para revisar `app.js` y `dominio.js` con ESLint.
+- `npm test` para los tests del núcleo (`dominio.test.js`): reparto de cuota, cuotas por uso y caso de fuga.
 - `npm run format:check` para revisar formateo con Prettier.
 - Comprobar que el diagnóstico muestra directamente la dona de consumo (sin pestañas ni panel de recibo), que el gráfico se mide bien al volver a la vista y que el menú `#btn-acciones` abra/cierre con teclado y clic fuera.
 - Comprobar el onboarding de selección directa: muestra solo las tres tarjetas (Compacta, Estándar, Amplia) sin campos de personas ni m³; elegir una crea la casa al instante con habitantes 2 / 4 / 5 y capacidad según el tamaño.
@@ -192,7 +202,7 @@ Clave: `smartgota:estado:v3`
 - Comprobar el desfase de fugas: a 3600× y a 21600× la bitácora registra “Anomalía detectada en …” con la hora exacta de inicio del caso (la del `simCasoFuga`, entre 08:00 y 18:00) y no horas después, y la fila del sensor pasa a “Anómalo” sin esperar el throttle.
 - Comprobar el botón de suministro: con el tinaco al 100 % y la simulación sin iniciar o en pausa no brilla (`.modo-suministro--flujo`) ni dice “Suministro · entrando”; solo lo hace con la simulación corriendo y la red entregando agua.
 - Abrir el resumen de sesión: las tres cifras (`.resumen__kpis`) van en tres columnas iguales en escritorio y apiladas a ≤480 px, sin hueco vacío.
-- Si un cambio de CSS/JS no se ve, actualizar el parámetro `?v=48` o limpiar caché del navegador.
+- Si un cambio de CSS/JS no se ve, actualizar el parámetro `?v=49` o limpiar caché del navegador.
 
 ## Gotchas
 

@@ -1,5 +1,21 @@
-/* SmartGota — app.js (v48) */
+/* SmartGota — app.js (v49) */
 'use strict';
+
+// Núcleo de cálculo compartido con dominio.js (script clásico previo)
+const {
+  CATALOGO,
+  TASAS_FUGA,
+  ROLES_SALA,
+  normalizarPerfil,
+  esTipoSala,
+  tipoSala,
+  flujoDe,
+  litrosConFlujo,
+  baseUso,
+  repartirCuota,
+  normalizarCasoFuga,
+  generarCasoFuga,
+} = SmartGotaDominio;
 
 const CONFIG = {
   diasMes: 30,
@@ -45,240 +61,6 @@ function pintarDestacado(el, texto) {
     fuerte.textContent = trozo.slice(0, corte);
     el.append(fuerte, trozo.slice(corte + 1));
   });
-}
-
-const CATALOGO = {
-  ducha: {
-    nombre: 'Ducha',
-    icono: '🚿',
-    descripcion:
-      'Es el mayor gasto por persona. El modo ahorrador reduce el caudal casi a la mitad.',
-    flujo: 15,
-    medida: 'L/min',
-    unidad: 'Minutos',
-    sugerido: 10,
-    frecuenciaInicial: 'dia',
-    modoInicial: 'estandar',
-    porHabitante: true,
-    modos: {
-      estandar: { nombre: 'Estándar (15 L/min)', flujo: 15 },
-      ecologica: { nombre: 'Ecológica / Ahorradora (7 L/min)', flujo: 7 },
-      antigua: { nombre: 'Antigua / Sin restrictor (20 L/min)', flujo: 20 },
-    },
-  },
-  inodoro: {
-    nombre: 'Inodoro',
-    icono: '🚽',
-    descripcion: 'Cada descarga gasta agua. El modelo dual ahorra hasta 60 % por descarga.',
-    flujo: 6,
-    medida: 'L/descarga',
-    unidad: 'Descargas',
-    sugerido: 5,
-    frecuenciaInicial: 'dia',
-    modoInicial: 'estandar',
-    porHabitante: true,
-    modos: {
-      antiguo: { nombre: 'Antiguo (12 L/descarga)', flujo: 12 },
-      estandar: { nombre: 'Estándar (6 L/descarga)', flujo: 6 },
-      ecologico: { nombre: 'Ecológico / Dual (4.5 L/descarga)', flujo: 4.5 },
-    },
-  },
-  lavabo: {
-    nombre: 'Lavabo',
-    icono: '🚰',
-    descripcion: 'Corre mientras te lavas. Un aireador baja el caudal sin que se note.',
-    flujo: 6,
-    medida: 'L/min',
-    unidad: 'Minutos',
-    sugerido: 3,
-    frecuenciaInicial: 'dia',
-    modoInicial: 'estandar',
-    porHabitante: true,
-    modos: {
-      estandar: { nombre: 'Estándar (6 L/min)', flujo: 6 },
-      ecologico: { nombre: 'Con aireador ahorrador (3.5 L/min)', flujo: 3.5 },
-    },
-  },
-  tina: {
-    nombre: 'Tina de baño',
-    icono: '🛁',
-    descripcion: 'Llenarla gasta muchísima agua. El medio llenado ahorra un tercio.',
-    flujo: 150,
-    medida: 'L/uso',
-    unidad: 'Usos',
-    sugerido: 1,
-    frecuenciaInicial: 'semana',
-    modoInicial: 'estandar',
-    porHabitante: false,
-    modos: {
-      estandar: { nombre: 'Estándar llena (150 L/uso)', flujo: 150 },
-      compacta: { nombre: 'Medio llenado (100 L/uso)', flujo: 100 },
-    },
-  },
-  lavadora: {
-    nombre: 'Lavadora',
-    icono: '🧺',
-    descripcion: 'Cada carga usa decenas de litros. La carga frontal eficiente ahorra por ciclo.',
-    flujo: 50,
-    medida: 'L/carga',
-    unidad: 'Cargas',
-    sugerido: 3,
-    frecuenciaInicial: 'semana',
-    modoInicial: 'estandar',
-    porHabitante: false,
-    modos: {
-      antigua: { nombre: 'Antigua / Ciclo pesado (80 L/carga)', flujo: 80 },
-      estandar: { nombre: 'Estándar (50 L/carga)', flujo: 50 },
-      eficiente: {
-        nombre: 'Eficiente / Carga frontal (35 L/carga)',
-        flujo: 35,
-      },
-    },
-  },
-  lavavajillas: {
-    nombre: 'Lavavajillas',
-    icono: '🍽️',
-    descripcion: 'Lava con menos agua que a mano. El ciclo eco consume menos por carga.',
-    flujo: 15,
-    medida: 'L/carga',
-    unidad: 'Cargas',
-    sugerido: 4,
-    frecuenciaInicial: 'semana',
-    modoInicial: 'estandar',
-    porHabitante: false,
-    modos: {
-      estandar: { nombre: 'Estándar (15 L/carga)', flujo: 15 },
-      eco: { nombre: 'Ciclo Eco (10 L/carga)', flujo: 10 },
-    },
-  },
-  grifo: {
-    nombre: 'Grifo (Manguera)',
-    icono: '🪴',
-    descripcion: 'Riego y limpieza exterior. La pistola corta el flujo cuando no se usa.',
-    flujo: 20,
-    medida: 'L/min',
-    unidad: 'Minutos',
-    sugerido: 15,
-    frecuenciaInicial: 'semana',
-    modoInicial: 'estandar',
-    porHabitante: false,
-    modos: {
-      estandar: { nombre: 'Manguera abierta (20 L/min)', flujo: 20 },
-      ahorrador: { nombre: 'Pistola / Riego eficiente (10 L/min)', flujo: 10 },
-    },
-  },
-  aire: {
-    nombre: 'Aire lavado',
-    icono: '💨',
-    descripcion: 'Evapora agua para enfriar. El modo compacto gasta menos por hora.',
-    flujo: 10,
-    medida: 'L/hora',
-    unidad: 'Horas',
-    sugerido: 10,
-    frecuenciaInicial: 'dia',
-    modoInicial: 'estandar',
-    porHabitante: false,
-    modos: {
-      estandar: { nombre: 'Estándar residencial (10 L/hora)', flujo: 10 },
-      compacto: { nombre: 'Compacto / Bajo flujo (6 L/hora)', flujo: 6 },
-    },
-  },
-  filtro: {
-    nombre: 'Filtro de agua potable',
-    icono: '🧫',
-    descripcion: 'Purifica agua para beber. La ósmosis rechaza agua; la ultrafiltración no.',
-    flujo: 3,
-    medida: 'L/L filtrado',
-    unidad: 'Litros filtrados',
-    sugerido: 5,
-    frecuenciaInicial: 'dia',
-    modoInicial: 'rechazo',
-    porHabitante: true,
-    modos: {
-      rechazo: { nombre: 'Ósmosis con rechazo (3 L/L)', flujo: 3 },
-      sin_rechazo: {
-        nombre: 'Sin rechazo / Ultrafiltración (1 L/L)',
-        flujo: 1,
-      },
-    },
-  },
-  fuga: {
-    nombre: 'Fuga',
-    icono: '💧',
-    descripcion: 'Una pérdida continua que gotea todo el día sin que nadie la use.',
-    flujo: 100,
-    medida: 'L/día',
-    unidad: '',
-    sugerido: 1,
-    fijo: true,
-  },
-};
-
-// Caudal de fuga continua por tipo de dispositivo en L/día
-const TASAS_FUGA = {
-  inodoro: 200,
-  ducha: 120,
-  grifo: 90,
-  tina: 80,
-  lavadora: 60,
-  lavavajillas: 60,
-  lavabo: 50,
-};
-
-// Promedios educativos por tamaño de vivienda
-const PROMEDIOS = {
-  bajo: {
-    ducha: 3.5,
-    inodoro: 4,
-    lavabo: 1.5,
-    lavaboCocina: 2,
-    tina: 1,
-    lavadora: 3,
-    lavavajillas: 2,
-    grifo: 15,
-    aire: 10,
-    aireSecundario: 6,
-    filtro: 5,
-  },
-  medio: {
-    ducha: 4,
-    inodoro: 5,
-    lavabo: 2,
-    lavaboCocina: 3,
-    tina: 1,
-    lavadora: 3,
-    lavavajillas: 3,
-    grifo: 20,
-    aire: 10,
-    aireSecundario: 6,
-    filtro: 5,
-  },
-  alto: {
-    ducha: 7,
-    inodoro: 5,
-    lavabo: 3,
-    lavaboCocina: 5,
-    tina: 2,
-    lavadora: 5,
-    lavavajillas: 5,
-    grifo: 30,
-    aire: 10,
-    aireSecundario: 6,
-    filtro: 5,
-  },
-};
-
-const ALIAS_PERFIL = {
-  basica: 'bajo',
-  familiar: 'medio',
-  amplia: 'alto',
-  bajo: 'bajo',
-  medio: 'medio',
-  alto: 'alto',
-};
-
-function normalizarPerfil(perfil) {
-  return ALIAS_PERFIL[perfil] || 'bajo';
 }
 
 function etiquetaPerfil(perfil) {
@@ -593,45 +375,7 @@ const entero = (v, min, max) => {
   return Math.min(Math.max(n, min), max);
 };
 
-function flujoDe(d) {
-  const c = CATALOGO[d.tipo];
-  if (!c) {
-    return 0;
-  }
-  if (c.modos && d.modo && c.modos[d.modo]) {
-    return c.modos[d.modo].flujo;
-  }
-  return c.flujo;
-}
-
-function litrosConFlujo(d, flujo) {
-  const c = CATALOGO[d.tipo];
-  if (c.fijo) {
-    return c.flujo;
-  }
-  const divisor = d.frecuencia === 'semana' ? 7 : 1;
-  return Math.round(((flujo * d.uso_personalizado) / divisor) * 10) / 10;
-}
-
 const litrosDe = (d) => litrosConFlujo(d, flujoDe(d));
-
-// Tipo y rol de habitación
-const TIPOS_SALA = [
-  { id: 'recamara', nombre: 'Recámara', icono: '🛏', genero: 'f' },
-  { id: 'bano', nombre: 'Baño', icono: '🚿', genero: 'm' },
-  { id: 'cocina', nombre: 'Cocina', icono: '🍳', genero: 'f' },
-  { id: 'sala', nombre: 'Sala', icono: '🛋', genero: 'f' },
-  { id: 'comedor', nombre: 'Comedor', icono: '🍽', genero: 'm' },
-  { id: 'lavanderia', nombre: 'Lavandería', icono: '🧺', genero: 'f' },
-  { id: 'patio', nombre: 'Patio', icono: '🌿', genero: 'm' },
-  { id: 'estudio', nombre: 'Estudio', icono: '💻', genero: 'm' },
-];
-
-const ROLES_SALA = ['principal', 'secundario', 'medio'];
-
-const tipoSala = (id) => TIPOS_SALA.find((t) => t.id === id) || TIPOS_SALA[0];
-
-const esTipoSala = (id) => TIPOS_SALA.some((t) => t.id === id);
 
 function inferirTipoSala(nombre) {
   const n = String(nombre || '').toLowerCase();
@@ -665,49 +409,11 @@ function inferirTipoSala(nombre) {
   return { tipo: 'recamara', rol: null };
 }
 
-const PESO_ROL = { principal: 3, medio: 2, secundario: 1 };
-
-function baseUso(tipo, salaId = null) {
-  const c = CATALOGO[tipo];
-  if (!c) {
-    return { clave: null, uso: 0, peso: 1 };
-  }
-  if (c.fijo) {
-    return { clave: null, uso: c.sugerido, peso: 1 };
-  }
-
-  const tabla = PROMEDIOS[normalizarPerfil(Estado.perfil)] || PROMEDIOS.bajo;
-  const hab = salaId ? Estado.habitaciones.get(salaId) : null;
-  const tipoHab = hab && esTipoSala(hab.tipo) ? hab.tipo : 'recamara';
-  const rol = hab && ROLES_SALA.includes(hab.rol) ? hab.rol : 'principal';
-
-  if (tipo === 'aire') {
-    return {
-      clave: null,
-      uso: rol === 'secundario' ? (tabla.aireSecundario ?? 6) : tabla.aire,
-      peso: 1,
-    };
-  }
-
-  const esCocina = tipo === 'lavabo' && tipoHab === 'cocina';
-  const esBano = tipoHab === 'bano';
-  const clave = esCocina ? 'lavaboCocina' : tipo;
-  let uso = esCocina ? (tabla.lavaboCocina ?? tabla.lavabo) : (tabla[tipo] ?? c.sugerido);
-
-  if (c.porHabitante && !esCocina) {
-    uso *= Math.max(1, Estado.habitantes);
-  }
-  if (tipo === 'lavadora' || tipo === 'lavavajillas') {
-    uso = (uso * Math.max(1, Estado.habitantes)) / 4;
-  }
-
-  const esUsoBano = tipo === 'ducha' || tipo === 'inodoro' || tipo === 'lavabo';
-  const peso = esBano && esUsoBano ? (PESO_ROL[rol] ?? 1) : 1;
-  return { clave, uso: limitar(Math.round(uso), 0, 999), peso };
-}
+// Contexto de vivienda que el dominio puro necesita para calcular cuotas
+const contextoPerfil = () => ({ perfil: Estado.perfil, habitantes: Estado.habitantes });
 
 function usoPromedio(tipo, salaId = null) {
-  return baseUso(tipo, salaId).uso;
+  return baseUso(tipo, Estado.habitaciones.get(salaId), contextoPerfil()).uso;
 }
 
 function aplicarPromedioDispositivo(d, uso = null) {
@@ -722,7 +428,7 @@ function aplicarPromedioDispositivo(d, uso = null) {
 function recalcularUsosPorNivel() {
   const grupos = new Map();
   Estado.dispositivos.forEach((d) => {
-    const { clave, uso, peso } = baseUso(d.tipo, d.sala);
+    const { clave, uso, peso } = baseUso(d.tipo, Estado.habitaciones.get(d.sala), contextoPerfil());
     if (!clave) {
       aplicarPromedioDispositivo(d, uso);
       return;
@@ -733,25 +439,11 @@ function recalcularUsosPorNivel() {
     grupos.get(clave).items.push({ d, peso: peso || 1 });
   });
   grupos.forEach(({ total, items }) => {
-    const suma = items.reduce((s, it) => s + it.peso, 0);
-    let asignado = 0;
-    items.forEach((it) => {
-      const exacto = (total * it.peso) / suma;
-      it.base = Math.floor(exacto);
-      it.resto = exacto - it.base;
-      asignado += it.base;
-    });
-    let sobra = total - asignado;
-    items
-      .slice()
-      .sort((a, b) => b.resto - a.resto)
-      .forEach((it) => {
-        if (sobra > 0) {
-          it.base += 1;
-          sobra -= 1;
-        }
-      });
-    items.forEach((it) => aplicarPromedioDispositivo(it.d, it.base));
+    const cuotas = repartirCuota(
+      total,
+      items.map((it) => it.peso)
+    );
+    items.forEach((it, i) => aplicarPromedioDispositivo(it.d, cuotas[i]));
   });
   Estado.dispositivos.forEach((d, id) => {
     const el = $(id);
@@ -837,34 +529,6 @@ function fugasSimPorSala(enVivo) {
 
 function fugasIniciadas() {
   return Sim.fugasActivas.filter((id) => fugaIniciada(id));
-}
-
-function normalizarCasoFuga(codigo) {
-  const n = parseInt(String(codigo).replace(/\D/g, ''), 10);
-  if (!Number.isFinite(n) || n < 1000) {
-    return 4821;
-  }
-  return Math.min(n, 9999);
-}
-
-function generarCasoFuga(codigo) {
-  const base = normalizarCasoFuga(codigo);
-  const elegibles = [...Estado.dispositivos.entries()]
-    .filter(([, d]) => TASAS_FUGA[d.tipo] > 0)
-    .map(([id]) => id);
-  if (!elegibles.length) {
-    return { codigo: base, ids: [], horas: new Map() };
-  }
-  const indice = Math.floor(base / 10) % elegibles.length;
-  const ids = [elegibles[indice]];
-  if (base % 10 >= 8 && elegibles.length > 1) {
-    ids.push(elegibles[(indice + 1) % elegibles.length]);
-  }
-  const horas = new Map();
-  ids.forEach((id, i) => {
-    horas.set(id, 8 + ((Math.floor(base / 7) + i * 5) % 11));
-  });
-  return { codigo: base, ids, horas };
 }
 
 function tinacosDe(litros) {
@@ -1631,7 +1295,6 @@ function montarHabitacion(hab) {
   return el;
 }
 
-const limitar = (n, min, max) => Math.min(Math.max(n, min), max);
 const MAX_FILAS = 8;
 const FILAS_MIN = 2;
 
@@ -2136,6 +1799,10 @@ function limpiarFugasReveladas() {
   }
 }
 
+// Aparatos que pueden protagonizar una fuga sorpresa
+const idsElegiblesFuga = () =>
+  [...Estado.dispositivos.entries()].filter(([, d]) => TASAS_FUGA[d.tipo] > 0).map(([id]) => id);
+
 function casoFugaAleatorio() {
   let codigo = Sim.casoFuga;
   while (codigo === Sim.casoFuga) {
@@ -2145,7 +1812,7 @@ function casoFugaAleatorio() {
 }
 
 function aplicarCasoFuga(codigo) {
-  const caso = generarCasoFuga(codigo);
+  const caso = generarCasoFuga(codigo, idsElegiblesFuga());
   Sim.casoFuga = caso.codigo;
   Sim.fugasActivas = caso.ids;
   Sim.horaInicioFuga = caso.horas;
@@ -3036,7 +2703,7 @@ function sincronizarSimDesdeEstado() {
   Sim.fugasActivas = Array.isArray(Estado.simFugasActivas)
     ? Estado.simFugasActivas.filter((id) => Estado.dispositivos.has(id))
     : [];
-  const casoGuardado = generarCasoFuga(Sim.casoFuga);
+  const casoGuardado = generarCasoFuga(Sim.casoFuga, idsElegiblesFuga());
   Sim.horaInicioFuga = new Map(Sim.fugasActivas.map((id) => [id, casoGuardado.horas.get(id) ?? 0]));
   Sim.aguaPerdida = Math.max(0, Number(Estado.simAguaPerdida) || 0);
   Sim.nivel =

@@ -2,7 +2,7 @@
 
 Simulador educativo de consumo de agua de una vivienda. La app propone el flujo **“El Detective del Agua”**: crear una casa inicial, ver cuánto consume por tipo de aparato y simular cómo se vacía y se llena el tinaco a lo largo del día, cazando fugas sorpresa.
 
-Es un proyecto web estático: `index.html` + `styles.css` + `app.js`. No requiere servidor, build ni backend; la interfaz y el código están en español.
+Es un proyecto web estático: `index.html` + `styles.css` + `dominio.js` + `app.js`. No requiere servidor, build ni backend; la interfaz y el código están en español.
 
 ## Cómo ejecutar
 
@@ -94,13 +94,14 @@ No hay código compartido con otras carpetas del repositorio, ni paso de build, 
 
 ```bash
 npm install            # instalar ESLint y Prettier
-npm run lint           # revisar app.js
+npm run lint           # revisar app.js y dominio.js
 npm run lint:fix       # autocorregir problemas de estilo
-npm run format         # formatear app.js, styles.css e index.html
+npm test               # tests del núcleo de cálculo (node --test)
+npm run format         # formatear app.js, dominio.js, styles.css e index.html
 npm run format:check   # verificar formateo
 ```
 
-Si un cambio de CSS o JavaScript no se ve en el navegador, actualiza el parámetro `?v=48` de los assets o limpia la caché.
+Si un cambio de CSS o JavaScript no se ve en el navegador, actualiza el parámetro `?v=49` de los assets o limpia la caché.
 
 ## Verificación manual
 
