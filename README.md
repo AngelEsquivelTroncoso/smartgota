@@ -1,6 +1,6 @@
 # SmartGota (TI2)
 
-Simulador educativo de consumo de agua de una vivienda. La app propone el flujo **“El Detective del Agua”**: crear una casa inicial, comparar el consumo estimado contra el recibo mensual y simular cómo se vacía y se llena el tinaco a lo largo del día.
+Simulador educativo de consumo de agua de una vivienda. La app propone el flujo **“El Detective del Agua”**: crear una casa inicial, ver cuánto consume por tipo de aparato y simular cómo se vacía y se llena el tinaco a lo largo del día, cazando fugas sorpresa.
 
 Es un proyecto web estático: `index.html` + `styles.css` + `app.js`. No requiere servidor, build ni backend; la interfaz y el código están en español.
 
@@ -14,11 +14,10 @@ Internet solo es necesario para el gráfico (Chart.js) y la exportación PDF (js
 
 ## Qué puedes hacer
 
-- Crear una vivienda inicial con habitantes, recibo mensual y nivel socioeconómico (bajo, medio o alto).
-- Construir el plano con varios pisos y habitaciones redimensionables.
-- Colocar dispositivos como ducha, inodoro, lavabo, tina, lavadora, lavavajillas, filtro, grifo, aire lavado y fugas; el consumo se estima por nivel y la eficiencia se puede ajustar.
-- Comparar los m³ estimados por el plano contra los m³ reales del recibo.
-- Revisar el consumo por habitación, la referencia OMS y el consumo por persona.
+- Crear una vivienda inicial eligiendo el tamaño (Compacta, Estándar o Amplia): la casa nace con personas y capacidad del tinaco ya preconfiguradas y fijas (no se editan).
+- Ver el plano de la casa (inmutable): pisos, habitaciones y dispositivos vienen de la plantilla según el tamaño elegido.
+- Consultar el catálogo de dispositivos (ducha, inodoro, lavabo, tina, lavadora, lavavajillas, filtro, grifo, aire lavado y fugas) y cambiar la eficiencia de cada aparato del plano; el consumo se estima según el tamaño de la vivienda, el tipo de habitación y la eficiencia.
+- Revisar el consumo por tipo de dispositivo, el mayor gasto y el porcentaje del tinaco.
 - Simular el suministro de agua y el tinaco en tiempo real.
 - Revisar sensores virtuales de flujo por habitación.
 - Exportar un reporte PDF o descargar el gráfico como PNG.
@@ -29,12 +28,9 @@ Internet solo es necesario para el gráfico (Chart.js) y la exportación PDF (js
 
 Reúne el resumen, el constructor y el diagnóstico:
 
-- **Resumen:** consumo diario, diferencia contra el recibo y pérdida por fugas. Desde aquí se editan las personas (los promedios se recalculan), el recibo y la capacidad del tinaco.
-- **Constructor:** paleta agrupada en **Baño**, **Cocina y lavandería** y **Casa y exterior**; plano con pisos, habitaciones y dispositivos; el color de cada habitación indica su consumo.
-- **Diagnóstico:** tres pestañas internas:
-  - **Consumo:** dona de consumo por habitación y lista con el mismo color por habitación (la dona ya no lleva leyenda aparte).
-  - **Recibo:** comparación entre los m³ estimados y el recibo real (±15 %), agua no explicada y diferencia mensual.
-  - **Social:** consumo por persona y referencias de 80, 100 y 180 L/persona/día.
+- **Resumen:** consumo diario (con su equivalente mensual) y pérdida por fugas. Personas y capacidad del tinaco se muestran fijas, definidas por el tipo de vivienda.
+- **Constructor:** catálogo informativo de dispositivos agrupado en **Baño**, **Cocina y lavandería** y **Casa y exterior**, y el plano inmutable con pisos, habitaciones y dispositivos; el color de cada habitación indica su consumo.
+- **Diagnóstico:** vista única, sin pestañas: mayor consumo, porcentaje del tinaco, consumo mensual, y la dona de consumo por tipo de dispositivo con su lista del mismo color (la dona no lleva leyenda aparte).
 - **Acciones:** el menú “Más” permite exportar PDF, descargar el gráfico PNG y reiniciar la casa.
 
 La recomendación principal aparece plegada para no saturar la pantalla. El botón **Simular el día** cambia a la vista del simulador.
@@ -53,15 +49,16 @@ La recomendación principal aparece plegada para no saturar la pantalla. El bot�
 
 ## Onboarding y plantillas
 
-El onboarding pide tres datos:
+El onboarding es de selección directa: muestra solo tres tarjetas de vivienda (Compacta, Estándar, Amplia) y, al elegir una, crea la casa al instante con valores preconfigurados:
 
-- Personas que viven en la casa (1–50).
-- m³ del último recibo mensual.
-- Nivel socioeconómico: bajo, medio o alto.
+- **Personas:** 2, 4 o 5 según el tamaño.
+- **Capacidad del tinaco:** según la cantidad de personas.
 
-La casa inicial se genera con una plantilla. El nivel define tanto la vivienda inicial como los promedios de consumo: minutos de ducha, descargas del inodoro, cargas de lavadora o lavavajillas, etc. No se piden esos valores por dispositivo. Al tocar un dispositivo se abre una ficha con el cálculo estimado y un selector de eficiencia. Si cambias las personas, mueves un dispositivo o renombras una habitación, los usos se recalculan según el nivel y el contexto (baño principal, baño 2, medio baño o cocina).
+La casa inicial se genera con una plantilla. El tamaño define tanto la vivienda inicial como los promedios de consumo: minutos de ducha, descargas del inodoro, cargas de lavadora o lavavajillas, etc. No se piden esos valores por dispositivo. Al tocar un dispositivo se abre una ficha con el cálculo estimado y un selector de eficiencia. Si cambias las personas, los usos se recalculan: cada uso (ducha, inodoro, lavabo de baño) es una sola cuota para la casa que se reparte entre los aparatos según el rol de su baño (principal, secundario o medio); el lavabo de cocina es un uso aparte del hogar.
 
-La capacidad sugerida del tinaco es 450 L (1–2 personas), 750 L (3–4), 1100 L (5–6) y 2500 L (7+). El recibo se interpreta como consumo mensual; por defecto se usan 30 días.
+Cada habitación guarda su tipo (recámara, baño, cocina, sala, comedor, lavandería, patio, estudio) y su rol (principal, secundario o medio en los baños). El nombre es solo una etiqueta: el cálculo del consumo depende del tipo y del rol, no de cómo se llame la habitación.
+
+La capacidad del tinaco es fija por vivienda: Compacta 450 L, Estándar 750 L, Amplia 1100 L. El consumo mensual estimado usa 30 días por defecto.
 
 ## Persistencia
 
@@ -74,7 +71,7 @@ smartgota:estado:v3
 - Los cambios se guardan automáticamente.
 - La simulación guarda nivel, tiempo, consumo acumulado y estado de bomba al ocultar o cerrar la pestaña.
 - Si no hay un `v3` válido, se abre el onboarding; los datos de `v1` o `v2` no se migran.
-- Un `v3` anterior con perfil de vivienda (`basica`, `familiar` o `amplia`) se normaliza al nivel equivalente (`bajo`, `medio` o `alto`); al cargar, todos los dispositivos sincronizan su uso y frecuencia con los promedios del nivel y los contextos de la habitación.
+- Un `v3` anterior con perfil de vivienda (`basica`, `familiar` o `amplia`) se normaliza al tamaño equivalente (`bajo`, `medio` o `alto`); al cargar, todos los dispositivos sincronizan su uso y frecuencia con los promedios del tamaño y los contextos de la habitación.
 - Para reiniciar de forma soportada, usa **Reiniciar casa**. Borrar la clave con la pestaña abierta puede no ser suficiente: la simulación se vuelve a guardar al recargar o cerrar.
 - Si `localStorage` no está disponible (modo privado, cupo lleno o bloqueado), la app sigue funcionando en memoria y muestra un aviso.
 - Los datos no salen del navegador.
@@ -103,14 +100,14 @@ npm run format         # formatear app.js, styles.css e index.html
 npm run format:check   # verificar formateo
 ```
 
-Si un cambio de CSS o JavaScript no se ve en el navegador, actualiza el parámetro `?v=38` de los assets o limpia la caché.
+Si un cambio de CSS o JavaScript no se ve en el navegador, actualiza el parámetro `?v=48` de los assets o limpia la caché.
 
 ## Verificación manual
 
 - Completar el onboarding y comprobar que se crea la casa inicial.
-- Cambiar personas, recibo y tinaco; verificar que los KPIs y el diagnóstico se actualicen.
-- Probar las pestañas **Consumo**, **Recibo** y **Social**.
-- Arrastrar o tocar un dispositivo de la paleta y colocarlo en una habitación; comprobar que aparece en el plano sin abrir la ficha. Al tocarlo, la ficha muestra el consumo estimado y permite cambiar la eficiencia.
+- Verificar que personas y tinaco aparecen fijos según el tamaño elegido (2/4/5 personas · 450/750/1100 L) y que no hay inputs editables ni indicador de recibo.
+- Revisar el diagnóstico: dona y lista de consumo por tipo de dispositivo, sin pestañas.
+- Revisar el catálogo de dispositivos (icono, flujo base y descripción) y tocar un aparato del plano para abrir su ficha y cambiar la eficiencia.
 - Revisar el menú **Más** con teclado y ratón, y la guía de uso con Escape.
 - Probar los modos de suministro, el interruptor de la bomba y el tanque vacío.
 - Comprobar que la suma de los sensores por habitación coincide con el consumo real dentro del redondeo. Cada fila muestra el estado en una píldora corta (`Normal`, `Pico`, `Anómalo`) y el número usa el mismo formato que el resto (`1,133 L`).
@@ -120,7 +117,7 @@ Si un cambio de CSS o JavaScript no se ve en el navegador, actualiza el parámet
 
 ## Alcance y notas
 
-- Es un modelo educativo; no sustituye una medición real ni un recibo oficial.
+- Es un modelo educativo; no sustituye una medición real.
 - La bomba y el tinaco están simplificados. No hay cisterna ni segunda bomba.
 - Los tiempos de “se llena” o “se vacía” son de la vivienda simulada, no del reloj real.
 - El gráfico y el PDF requieren conexión a internet para cargar sus librerías desde CDN.

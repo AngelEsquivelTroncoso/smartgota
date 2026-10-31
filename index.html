@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0b1210" />
     <title>SmartGota — Calcula tu consumo de agua</title>
-    <link rel="stylesheet" href="styles.css?v=40" />
+    <link rel="stylesheet" href="styles.css?v=48" />
   </head>
   <body>
     <header class="cabecera">
@@ -64,47 +64,21 @@
           </div>
 
           <div class="resumen-casa__datos">
-            <label class="campo-inline" for="habitantes">
+            <span class="campo-inline">
               <span>Personas</span>
-              <input type="number" id="habitantes" min="1" max="50" step="1" value="4" />
-            </label>
+              <strong id="habitantes">4</strong>
+            </span>
 
-            <label class="campo-inline campo-inline--recibo" for="recibo-simas">
-              <span>Recibo mensual</span>
-              <span class="input-con-sufijo">
-                <input
-                  type="number"
-                  id="recibo-simas"
-                  min="0"
-                  max="999"
-                  step="0.1"
-                  placeholder="Ej. 20"
-                  inputmode="decimal"
-                />
-                <b>m³</b>
-              </span>
-            </label>
-
-            <label class="campo-inline" for="capacidad">
+            <span class="campo-inline">
               <span>Tinaco</span>
-              <select id="capacidad">
-                <option value="450">450 L</option>
-                <option value="750" selected>750 L</option>
-                <option value="1100">1100 L</option>
-                <option value="2500">2500 L</option>
-              </select>
-            </label>
+              <strong id="capacidad">750 L</strong>
+            </span>
 
             <div class="kpis-resumen" aria-label="Indicadores principales">
               <article class="kpi kpi--principal">
                 <span>Consumo diario</span>
                 <strong id="m-litros">0 L</strong>
                 <small id="m-litros-mes-corta">aún sin dispositivos</small>
-              </article>
-              <article class="kpi">
-                <span>Vs. tu recibo</span>
-                <strong id="m-vs-recibo">—</strong>
-                <small id="m-vs-recibo-detalle">Agrega tu recibo mensual</small>
               </article>
             </div>
           </div>
@@ -121,8 +95,11 @@
           <aside class="tarjeta col-disp" aria-labelledby="disp-titulo">
             <div class="seccion-cab">
               <div>
-                <h2 id="disp-titulo">Dispositivos</h2>
-                <p class="pista">Arrastra o toca uno y colócalo en una habitación.</p>
+                <h2 id="disp-titulo">Aparatos de tu casa</h2>
+                <p class="pista">
+                  Catálogo informativo: el flujo base y una descripción. Toca un aparato del plano
+                  para cambiar su modo.
+                </p>
               </div>
             </div>
             <div id="paleta"></div>
@@ -137,10 +114,8 @@
             </div>
             <div class="tabs">
               <div id="tabs" role="tablist" aria-label="Pisos"></div>
-              <button class="tab tab-nuevo" id="btn-piso" type="button">+ Piso</button>
             </div>
             <div id="plano"></div>
-            <button class="nueva" id="btn-sala" type="button">+ Añadir habitación</button>
           </section>
         </div>
 
@@ -149,38 +124,6 @@
             <div>
               <p class="eyebrow">Diagnóstico</p>
               <h2 id="diag-titulo">¿Cómo va tu casa?</h2>
-            </div>
-            <div class="diag-tabs" role="tablist" aria-label="Paneles de diagnóstico">
-              <button
-                class="diag-tab activa"
-                id="tab-diag-consumo"
-                data-diag="consumo"
-                role="tab"
-                aria-selected="true"
-                aria-controls="diag-consumo"
-              >
-                Consumo
-              </button>
-              <button
-                class="diag-tab"
-                id="tab-diag-recibo"
-                data-diag="recibo"
-                role="tab"
-                aria-selected="false"
-                aria-controls="diag-recibo"
-              >
-                Recibo
-              </button>
-              <button
-                class="diag-tab"
-                id="tab-diag-social"
-                data-diag="social"
-                role="tab"
-                aria-selected="false"
-                aria-controls="diag-social"
-              >
-                Social
-              </button>
             </div>
           </div>
 
@@ -192,20 +135,15 @@
             </details>
           </div>
 
-          <div
-            class="diag-panel"
-            id="diag-consumo"
-            role="tabpanel"
-            aria-labelledby="tab-diag-consumo"
-          >
+          <div class="diag-panel" id="diag-consumo">
             <div class="metricas secundarias">
               <div class="mini">
-                <strong id="m-oms">0 L</strong>
-                <span>Referencia OMS diaria</span>
+                <strong id="m-mayor">—</strong>
+                <span>Mayor consumo</span>
               </div>
               <div class="mini">
-                <strong id="m-uso-oms">0 %</strong>
-                <span>De la referencia OMS</span>
+                <strong id="m-pct-tinaco">0 %</strong>
+                <span>Del tinaco</span>
               </div>
               <div class="mini">
                 <strong id="m-litros-mes">0 L (0 m³)</strong>
@@ -218,7 +156,7 @@
                 <canvas
                   id="grafico-consumo"
                   role="img"
-                  aria-label="Consumo por habitación"
+                  aria-label="Consumo por tipo de dispositivo"
                 ></canvas>
                 <div class="grafico__vacio" id="grafico-vacio" hidden>
                   Sin consumo registrado en el plano
@@ -226,102 +164,10 @@
               </div>
               <div class="diag-consumo__lado">
                 <div class="diag-top">
-                  <h3>Consumo por habitación</h3>
+                  <h3>Consumo por tipo de dispositivo</h3>
                   <div id="diag-top-salas"></div>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div
-            class="diag-panel"
-            id="diag-recibo"
-            role="tabpanel"
-            aria-labelledby="tab-diag-recibo"
-            hidden
-          >
-            <div class="comparativa" id="comparativa-recibo">
-              <div class="comparativa__cab">
-                <div>
-                  <span class="comparativa__eyebrow">Tu plano vs tu recibo</span>
-                  <strong id="comparativa-titulo">Sin recibo registrado</strong>
-                </div>
-                <div class="comparativa__cifras">
-                  <span><b id="comparativa-virtual">0.0</b> m³ virtuales</span>
-                  <span class="comparativa__vs">vs</span>
-                  <span><b id="comparativa-real">0.0</b> m³ reales</span>
-                </div>
-              </div>
-              <div
-                class="comparativa__barra"
-                id="comparativa-barra"
-                role="progressbar"
-                aria-label="Cobertura del recibo por el plano"
-                aria-valuemin="0"
-                aria-valuemax="100"
-                aria-valuenow="0"
-                aria-valuetext="Sin recibo"
-              >
-                <div class="comparativa__fill" id="comparativa-fill"></div>
-                <span class="comparativa__meta" id="comparativa-meta">Meta -10 %</span>
-              </div>
-              <p class="comparativa__msg" id="comparativa-msg" aria-live="polite">
-                Agrega tu recibo mensual para comparar tu plano contra la realidad.
-              </p>
-            </div>
-            <div class="metricas metricas--recibo">
-              <div class="mini">
-                <strong id="m-no-explicada">—</strong>
-                <span>Agua no explicada</span>
-              </div>
-              <div class="mini">
-                <strong id="m-recibo-real">—</strong>
-                <span>Recibo mensual</span>
-              </div>
-              <div class="mini">
-                <strong id="m-recibo-dif">—</strong>
-                <span>Diferencia mensual</span>
-              </div>
-            </div>
-          </div>
-
-          <div
-            class="diag-panel"
-            id="diag-social"
-            role="tabpanel"
-            aria-labelledby="tab-diag-social"
-            hidden
-          >
-            <div class="normativa" id="normativa">
-              <div class="normativa__cab">
-                <span>Consumo por persona</span>
-                <strong id="norm-valor">0 L/hab/día</strong>
-              </div>
-              <div class="normativa__pista">
-                <div class="normativa__fill" id="norm-fill"></div>
-                <span
-                  class="normativa__marca"
-                  style="left: 36.36%"
-                  title="Vecino eficiente en Torreón: 80 L/hab/día"
-                >
-                  <i>80 L</i>
-                </span>
-                <span
-                  class="normativa__marca normativa__marca--oms"
-                  style="left: 45.45%"
-                  title="Referencia OMS: 100 L/hab/día"
-                >
-                  <i>OMS 100</i>
-                </span>
-                <span
-                  class="normativa__marca normativa__marca--alto"
-                  style="left: 81.82%"
-                  title="Promedio residencial alto: 180 L/hab/día"
-                >
-                  <i>180 L</i>
-                </span>
-              </div>
-              <small class="normativa__estado" id="norm-estado"></small>
             </div>
           </div>
 
@@ -433,6 +279,7 @@
                         aria-pressed="true"
                       >
                         Normal
+                        <small>Todo el día</small>
                       </button>
                       <button
                         type="button"
@@ -441,6 +288,7 @@
                         aria-pressed="false"
                       >
                         Tandeo
+                        <small>06–10 · 18–22</small>
                       </button>
                       <button
                         type="button"
@@ -449,6 +297,7 @@
                         aria-pressed="false"
                       >
                         Corte
+                        <small>Sin entrada</small>
                       </button>
                     </div>
                   </div>
@@ -509,9 +358,9 @@
                   red.
                 </p>
                 <p class="sim__control-nota" id="sim-fugas-nota" hidden>
-                  Al activarlas, la simulación esconde una o dos fugas en aparatos al azar. Cada
-                  corrida usa aparatos distintos: delátalas en los sensores y en el resumen final.
-                  Desactívalas para una simulación limpia.
+                  Al activarlas, la simulación esconde una o dos fugas en aparatos al azar. No
+                  gotean desde el inicio: cada una empieza a su hora, a mitad de la corrida.
+                  Delátalas cuando el sensor cambie a «Anómalo» y revísalas en el resumen final.
                 </p>
               </section>
 
@@ -532,6 +381,14 @@
                   </button>
                 </div>
               </div>
+
+              <section class="bitacora" aria-labelledby="bitacora-titulo">
+                <div class="bitacora__cab">
+                  <h3 id="bitacora-titulo">Bitácora de la corrida</h3>
+                  <span class="bitacora__vacio" id="bitacora-vacio">Sin eventos todavía</span>
+                </div>
+                <ol class="bitacora__lista" id="bitacora-lista" aria-live="polite"></ol>
+              </section>
 
               <details class="sim__detalles">
                 <summary>Ver detalles de la simulación</summary>
@@ -575,88 +432,37 @@
         <span class="onboarding__eyebrow">El detective del agua</span>
         <h3 class="modal__titulo" id="onboarding-titulo">Empecemos por tu casa</h3>
         <p class="onboarding__desc" id="onboarding-desc">
-          Elige cómo es tu vivienda y ajusta los datos. Todo queda en tu navegador.
+          Elige cómo es tu vivienda. Entras directo, sin configurar nada más.
         </p>
 
-        <fieldset
-          class="onboarding__perfiles"
-          id="onb-perfiles"
-          aria-describedby="onb-perfil-error"
-        >
+        <fieldset class="onboarding__perfiles" id="onb-perfiles">
           <legend>¿Cómo es tu vivienda?</legend>
           <p class="onboarding__ayuda">
-            El tamaño define la casa inicial y los promedios de consumo. Después puedes mover o
-            agregar dispositivos; no necesitas medir minutos, cargas ni descargas.
+            El tamaño define la casa inicial y los promedios de consumo.
           </p>
           <div class="onboarding__opciones">
-            <label class="perfil-opcion">
-              <input type="radio" name="onb-perfil" value="bajo" checked />
+            <button type="button" class="perfil-opcion" data-perfil="bajo">
               <span class="perfil-opcion__caja">
                 <strong>Compacta</strong>
                 <small>1 baño, cocina y lo esencial. Partimos de 2 personas.</small>
               </span>
-            </label>
-            <label class="perfil-opcion">
-              <input type="radio" name="onb-perfil" value="medio" />
+            </button>
+            <button type="button" class="perfil-opcion" data-perfil="medio">
               <span class="perfil-opcion__caja">
                 <strong>Estándar</strong>
                 <small>2 baños, cocina y lavandería. Partimos de 4 personas.</small>
               </span>
-            </label>
-            <label class="perfil-opcion">
-              <input type="radio" name="onb-perfil" value="alto" />
+            </button>
+            <button type="button" class="perfil-opcion" data-perfil="alto">
               <span class="perfil-opcion__caja">
                 <strong>Amplia</strong>
                 <small
                   >3 baños, cocina equipada, lavandería y jardín. Partimos de 5 personas.</small
                 >
               </span>
-            </label>
+            </button>
           </div>
-          <p class="campo__error" id="onb-perfil-error" role="alert" hidden>
-            Elige el tamaño de tu vivienda.
-          </p>
         </fieldset>
-
-        <div class="campo">
-          <label for="onb-habitantes">¿Cuántas personas viven en la casa?</label>
-          <input
-            type="number"
-            id="onb-habitantes"
-            min="1"
-            max="50"
-            step="1"
-            value="4"
-            inputmode="numeric"
-            aria-describedby="onb-habitantes-ayuda onb-habitantes-error"
-          />
-          <small id="onb-habitantes-ayuda">Se ajusta al tamaño elegido; puedes cambiarlo.</small>
-          <p class="campo__error" id="onb-habitantes-error" role="alert" hidden>
-            Escribe un número entero entre 1 y 50.
-          </p>
-        </div>
-
-        <div class="campo">
-          <label for="onb-recibo">m³ del último recibo mensual</label>
-          <input
-            type="number"
-            id="onb-recibo"
-            min="0.1"
-            max="999"
-            step="0.1"
-            value="20"
-            inputmode="decimal"
-            aria-describedby="onb-recibo-error onboarding-recibo-ayuda"
-          />
-          <small id="onboarding-recibo-ayuda">Ejemplo: si tu recibo dice 20 m³, escribe 20.</small>
-          <p class="campo__error" id="onb-recibo-error" role="alert" hidden>
-            Escribe un consumo mensual mayor que 0 y menor o igual a 999 m³.
-          </p>
-        </div>
-
-        <button class="btn-sim btn-sim--principal onboarding__enviar" type="submit">
-          Crear mi casa y empezar
-        </button>
       </form>
     </div>
 
@@ -686,10 +492,6 @@
           <div class="resumen__kpi">
             <strong id="resumen-fugas">0 L/día</strong>
             <span>Agua perdida en fugas</span>
-          </div>
-          <div class="resumen__kpi">
-            <strong id="resumen-uso-oms">0 %</strong>
-            <span>De la referencia OMS</span>
           </div>
         </div>
         <div class="resumen__detalle resumen__fugas-bloque">
@@ -740,25 +542,26 @@
         </div>
         <div class="ayuda">
           <section>
-            <h4>1. Arma tu casa</h4>
+            <h4>1. Explora tu casa</h4>
             <p>
-              Elige un dispositivo de la lista y colócalo en una habitación. SmartGota estima su
-              consumo con promedios de tu nivel; toca el dispositivo para ver el cálculo y cambiar
-              su eficiencia.
+              El plano ya viene armado según el tamaño de vivienda que elegiste. Arriba hay un
+              catálogo informativo de aparatos; toca uno en el plano para cambiar su eficiencia
+              (estándar, ecológico o antiguo).
             </p>
           </section>
           <section>
-            <h4>2. Compara con tu recibo</h4>
+            <h4>2. Analiza el consumo</h4>
             <p>
-              SmartGota estima tu consumo mensual y lo compara con los m³ de tu recibo. Si la
-              diferencia es mayor al 15 %, revisa fugas o usos que no modelaste.
+              El diagnóstico desglosa el gasto por tipo de dispositivo y muestra qué porcentaje del
+              tinaco representa tu consumo diario.
             </p>
           </section>
           <section>
-            <h4>3. Simula el día</h4>
+            <h4>3. Simula el día y caza fugas</h4>
             <p>
-              En el simulador eliges el suministro y controlas la bomba. El tinaco se vacía con el
-              consumo de la casa y se llena con la bomba o la red.
+              En el simulador eliges el suministro y controlas la bomba. La bitácora en vivo anota
+              lo que ocurre, y las fugas sorpresa aparecen a mitad del día: revisa los sensores para
+              encontrarlas.
             </p>
           </section>
           <section>
@@ -793,11 +596,6 @@
       </div>
     </div>
 
-    <div class="papelera" id="papelera" aria-hidden="true">
-      <span class="papelera__ico">🗑️</span>
-      <span>Suelta aquí para eliminar</span>
-    </div>
-
     <script
       src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"
       defer
@@ -808,50 +606,7 @@
       defer
       onerror="window.__cdnError('jspdf')"
     ></script>
-    <script src="app.js?v=40" defer></script>
-
-    <div
-      class="modal"
-      id="modal-sala"
-      hidden
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="sala-titulo"
-    >
-      <form class="modal__caja modal__caja--sala" id="sala-form">
-        <h3 class="modal__titulo" id="sala-titulo">Nueva habitación</h3>
-        <p class="modal__msg" id="sala-msg"></p>
-
-        <fieldset class="sala-campo">
-          <legend>Tipo de habitación</legend>
-          <div class="sala-tipos" id="sala-tipos"></div>
-        </fieldset>
-
-        <div class="campo">
-          <label for="sala-nombre">Nombre</label>
-          <input
-            type="text"
-            id="sala-nombre"
-            maxlength="28"
-            autocomplete="off"
-            aria-describedby="sala-nombre-pista"
-          />
-          <small id="sala-nombre-pista">
-            Puedes personalizarlo. El tipo es lo que cuenta para el cálculo.
-          </small>
-        </div>
-
-        <fieldset class="sala-campo">
-          <legend id="sala-roles-leyenda">Rol de la habitación</legend>
-          <div class="sala-tipos sala-tipos--roles" id="sala-roles-opciones"></div>
-        </fieldset>
-
-        <div class="modal__acciones">
-          <button type="button" class="btn-sim btn-sim--sec" id="sala-cancelar">Cancelar</button>
-          <button type="submit" class="btn-sim btn-sim--principal" id="sala-ok">Añadir</button>
-        </div>
-      </form>
-    </div>
+    <script src="app.js?v=48" defer></script>
 
     <div
       class="modal"
@@ -870,6 +625,26 @@
           <button type="submit" class="btn-sim btn-sim--principal" id="modal-ok">Aceptar</button>
         </div>
       </form>
+    </div>
+
+    <div
+      class="modal"
+      id="modal-info"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-info-titulo"
+    >
+      <div class="modal__caja">
+        <h3 class="modal__titulo" id="modal-info-titulo"></h3>
+        <p class="modal__msg" id="modal-info-flujo"></p>
+        <p class="modal__msg" id="modal-info-msg"></p>
+        <div class="modal__acciones">
+          <button type="button" class="btn-sim btn-sim--principal" id="modal-info-cerrar">
+            Entendido
+          </button>
+        </div>
+      </div>
     </div>
   </body>
 </html>

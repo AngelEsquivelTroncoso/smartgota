@@ -1,24 +1,12 @@
-/* SmartGota — app.js (v21)
-   Secciones: Modelo/Estado · Resumen · Diagnóstico · Pisos · Habitaciones · Layout (Grid Spans) · Drag & Drop · Papelera · Clones · Editor · Simulación (consumo + red) · Arranque
-   Reactividad: todo cambio en Estado (Proxy) repinta el resumen/diagnóstico y guarda en localStorage. */
+/* SmartGota — app.js (v48) */
 'use strict';
-/* ===========================================================
-   MODELO (todo por ID):
-   Estado.pisos[id]  <--  Estado.habitaciones[id].piso  <--  Estado.dispositivos[id].sala
-   Cambiar de pestaña solo alterna `hidden`: los nodos (y el tamaño que dejó el
-   resize nativo en su style) siguen vivos en el DOM.
-   =========================================================== */
 
 const CONFIG = {
-  diasMes: 30, // días por mes para estimación mensual
-  tamClon: 44, // tamaño de píxel del clon en el plano
-  litrosOMS: 100, // L/hab/día · referencia OMS (mínimo de servicio)
-  refEficiente: 80, // L/hab/día vecino eficiente Torreón
-  refAlto: 180, // L/hab/día residencial alto
+  diasMes: 30,
+  tamClon: 44,
 };
 
-/* Formato de números y plurales.
-   Un solo formateador evita repetir toLocaleString en cada fotograma del HUD. */
+// Formateador único para cifras y plurales en español
 const NUM_ES = new Intl.NumberFormat('es-MX');
 
 function litrosTexto(n) {
@@ -29,10 +17,7 @@ function plural(n, singular, pluralText) {
   return NUM_ES.format(n) + ' ' + (n === 1 ? singular : pluralText);
 }
 
-/* Énfasis en mensajes de texto plano.
-   Los mensajes se pintan con textContent, así que el énfasis viaja como marca
-   invisible y se convierte en <strong> al escribir en el DOM. Nunca innerHTML:
-   los nombres de habitación son texto del usuario. */
+// Marcas invisibles para resaltar texto con <strong> usando textContent (sin innerHTML)
 const MARCA_INI = '\u0001';
 const MARCA_FIN = '\u0002';
 
@@ -66,6 +51,8 @@ const CATALOGO = {
   ducha: {
     nombre: 'Ducha',
     icono: '🚿',
+    descripcion:
+      'Es el mayor gasto por persona. El modo ahorrador reduce el caudal casi a la mitad.',
     flujo: 15,
     medida: 'L/min',
     unidad: 'Minutos',
@@ -82,6 +69,7 @@ const CATALOGO = {
   inodoro: {
     nombre: 'Inodoro',
     icono: '🚽',
+    descripcion: 'Cada descarga gasta agua. El modelo dual ahorra hasta 60 % por descarga.',
     flujo: 6,
     medida: 'L/descarga',
     unidad: 'Descargas',
@@ -98,6 +86,7 @@ const CATALOGO = {
   lavabo: {
     nombre: 'Lavabo',
     icono: '🚰',
+    descripcion: 'Corre mientras te lavas. Un aireador baja el caudal sin que se note.',
     flujo: 6,
     medida: 'L/min',
     unidad: 'Minutos',
@@ -113,6 +102,7 @@ const CATALOGO = {
   tina: {
     nombre: 'Tina de baño',
     icono: '🛁',
+    descripcion: 'Llenarla gasta muchísima agua. El medio llenado ahorra un tercio.',
     flujo: 150,
     medida: 'L/uso',
     unidad: 'Usos',
@@ -128,6 +118,7 @@ const CATALOGO = {
   lavadora: {
     nombre: 'Lavadora',
     icono: '🧺',
+    descripcion: 'Cada carga usa decenas de litros. La carga frontal eficiente ahorra por ciclo.',
     flujo: 50,
     medida: 'L/carga',
     unidad: 'Cargas',
@@ -147,6 +138,7 @@ const CATALOGO = {
   lavavajillas: {
     nombre: 'Lavavajillas',
     icono: '🍽️',
+    descripcion: 'Lava con menos agua que a mano. El ciclo eco consume menos por carga.',
     flujo: 15,
     medida: 'L/carga',
     unidad: 'Cargas',
@@ -162,6 +154,7 @@ const CATALOGO = {
   grifo: {
     nombre: 'Grifo (Manguera)',
     icono: '🪴',
+    descripcion: 'Riego y limpieza exterior. La pistola corta el flujo cuando no se usa.',
     flujo: 20,
     medida: 'L/min',
     unidad: 'Minutos',
@@ -177,6 +170,7 @@ const CATALOGO = {
   aire: {
     nombre: 'Aire lavado',
     icono: '💨',
+    descripcion: 'Evapora agua para enfriar. El modo compacto gasta menos por hora.',
     flujo: 10,
     medida: 'L/hora',
     unidad: 'Horas',
@@ -192,6 +186,7 @@ const CATALOGO = {
   filtro: {
     nombre: 'Filtro de agua potable',
     icono: '🧫',
+    descripcion: 'Purifica agua para beber. La ósmosis rechaza agua; la ultrafiltración no.',
     flujo: 3,
     medida: 'L/L filtrado',
     unidad: 'Litros filtrados',
@@ -210,6 +205,7 @@ const CATALOGO = {
   fuga: {
     nombre: 'Fuga',
     icono: '💧',
+    descripcion: 'Una pérdida continua que gotea todo el día sin que nadie la use.',
     flujo: 100,
     medida: 'L/día',
     unidad: '',
@@ -218,10 +214,7 @@ const CATALOGO = {
   },
 };
 
-/* Caudal de fuga continua por tipo de dispositivo, en L/día.
-   Referencias domésticas: una válvula de inodoro que no cierra pierde entre
-   150 y 300 L/día. El ítem "fuga" de la paleta queda fuera porque ya se
-   contabiliza vía CATALOGO[tipo].fijo. */
+// Caudal de fuga continua por tipo de dispositivo en L/día
 const TASAS_FUGA = {
   inodoro: 200,
   ducha: 120,
@@ -232,28 +225,13 @@ const TASAS_FUGA = {
   lavabo: 50,
 };
 
-/* Promedios educativos por tamaño de vivienda.
-   Evitan pedirle al usuario minutos, cargas o descargas. No son mediciones exactas:
-   son valores de partida para estimar el consumo de la vivienda.
-   - ducha, inodoro y lavabo: uso por persona y por día.
-   - duchaSecundaria, inodoroMedio/Secundario y lavaboMedio/Secundario: ajustes por tipo de baño.
-   - lavaboCocina: uso del hogar por día.
-   - lavadora y lavavajillas: cargas del hogar por semana (para 4 personas).
-   - grifo: minutos del hogar por semana; tina: usos por semana.
-   - aire: horas por día en un espacio principal; aireSecundario: horas en uno
-     secundario (el aire es carga puntual: no se reparte entre aparatos).
-   - filtro: litros filtrados por persona y por día. */
+// Promedios educativos por tamaño de vivienda
 const PROMEDIOS = {
   bajo: {
-    ducha: 10,
-    duchaSecundaria: 10,
-    inodoro: 5,
-    inodoroMedio: 3,
-    inodoroSecundario: 5,
-    lavabo: 3,
+    ducha: 3.5,
+    inodoro: 4,
+    lavabo: 1.5,
     lavaboCocina: 2,
-    lavaboMedio: 2,
-    lavaboSecundario: 3,
     tina: 1,
     lavadora: 3,
     lavavajillas: 2,
@@ -263,33 +241,23 @@ const PROMEDIOS = {
     filtro: 5,
   },
   medio: {
-    ducha: 12,
-    duchaSecundaria: 10,
-    inodoro: 6,
-    inodoroMedio: 3,
-    inodoroSecundario: 5,
-    lavabo: 4,
-    lavaboCocina: 4,
-    lavaboMedio: 2,
-    lavaboSecundario: 3,
+    ducha: 4,
+    inodoro: 5,
+    lavabo: 2,
+    lavaboCocina: 3,
     tina: 1,
-    lavadora: 4,
-    lavavajillas: 4,
-    grifo: 30,
+    lavadora: 3,
+    lavavajillas: 3,
+    grifo: 20,
     aire: 10,
     aireSecundario: 6,
     filtro: 5,
   },
   alto: {
-    ducha: 15,
-    duchaSecundaria: 10,
-    inodoro: 6,
-    inodoroMedio: 4,
-    inodoroSecundario: 5,
-    lavabo: 4,
+    ducha: 7,
+    inodoro: 5,
+    lavabo: 3,
     lavaboCocina: 5,
-    lavaboMedio: 2,
-    lavaboSecundario: 3,
     tina: 2,
     lavadora: 5,
     lavavajillas: 5,
@@ -300,8 +268,6 @@ const PROMEDIOS = {
   },
 };
 
-// Los estados v3 anteriores guardaban el perfil de vivienda como basica/familiar/amplia.
-// Se normalizan al tamaño de vivienda equivalente sin obligar a repetir el onboarding.
 const ALIAS_PERFIL = {
   basica: 'bajo',
   familiar: 'medio',
@@ -319,10 +285,10 @@ function etiquetaPerfil(perfil) {
   return { bajo: 'Compacta', medio: 'Estándar', alto: 'Amplia' }[normalizarPerfil(perfil)];
 }
 
-// Personas sugeridas al elegir el tamaño de vivienda; el usuario puede ajustarlas.
 const HABITANTES_SUGERIDOS = { bajo: 2, medio: 4, alto: 5 };
+const CAPACIDAD_POR_PERFIL = { bajo: 450, medio: 750, alto: 1100 };
 
-/* ---------- Estado reactivo (Proxy) + persistencia ---------- */
+// Estado reactivo (Proxy) y persistencia en localStorage
 const CLAVE_LS = 'smartgota:estado:v3';
 const CLAVES_LEGADO = ['smartgota:estado:v1', 'smartgota:estado:v2', 'smartgota:wizard:v1'];
 
@@ -333,14 +299,12 @@ let pausado = false,
   reiniciandoCasa = false,
   temporizadorCambios = null;
 
-// Varias mutaciones dentro de un mismo evento => UN solo repintado y UN solo guardado
 function notificar() {
   if (pausado || pendiente) {
     return;
   }
   pendiente = true;
   cambiosPendientes = true;
-  // Resetear cambiosPendientes después de 3 segundos sin cambios nuevos
   if (temporizadorCambios) {
     clearTimeout(temporizadorCambios);
   }
@@ -355,7 +319,6 @@ function notificar() {
   });
 }
 
-// Handler común: cualquier set/delete que cambie algo avisa
 const manejador = {
   set(t, k, v) {
     const igual = t[k] === v;
@@ -372,8 +335,6 @@ const manejador = {
   },
 };
 
-// Un Map no avisa de set/delete por sí solo: esta subclase sí. Cada registro guardado
-// se envuelve en un Proxy para que d.uso_personalizado = 5 también dispare la reacción.
 class MapaReactivo extends Map {
   set(k, v) {
     super.set(k, new Proxy(v, manejador));
@@ -397,23 +358,21 @@ const Estado = new Proxy(
   {
     version: 3,
     onboardingCompletado: false,
-    perfil: 'bajo', // 'bajo' | 'medio' | 'alto' (tamaño de vivienda: Compacta | Estándar | Amplia)
+    perfil: 'bajo',
     habitantes: 4,
-    reciboM3: 0, // m³ del último recibo mensual
     capacidad: 750,
     pisoActivo: null,
-    pisos: new MapaReactivo(), // id -> { id, nombre }
-    habitaciones: new MapaReactivo(), // id -> { id, nombre, piso, cx, cy, cs, rs }
-    dispositivos: new MapaReactivo(), // id -> { tipo, sala, fx, fy, uso_personalizado, frecuencia, modo, origen }
+    pisos: new MapaReactivo(),
+    habitaciones: new MapaReactivo(),
+    dispositivos: new MapaReactivo(),
     siguienteId: 1,
     siguienteSala: 1,
     siguientePiso: 1,
-    // Estado de simulación (persistido para retomar al recargar)
     simNivel: null,
     simTiempo: 0,
     simCorriendo: false,
     simVelocidad: 3600,
-    simModoSuministro: 'normal', // 'normal' | 'tandeo' | 'corte'
+    simModoSuministro: 'normal',
     simSeguirSinAgua: false,
     simBombaActiva: true,
     simConsumoAcumulado: 0,
@@ -421,13 +380,10 @@ const Estado = new Proxy(
     simFugasActivas: [],
     simFugasActivo: true,
     simAguaPerdida: 0,
-    // Periodo de cálculo (persistido)
-    diasMes: CONFIG.diasMes,
   },
   manejador
 );
 
-// Serialización: Map -> arreglo de pares [id, registro] (JSON no entiende Map)
 function guardarEstado() {
   try {
     localStorage.setItem(
@@ -438,7 +394,6 @@ function guardarEstado() {
         perfil: Estado.perfil,
         capacidad: Estado.capacidad,
         habitantes: Estado.habitantes,
-        reciboM3: Estado.reciboM3,
         pisoActivo: Estado.pisoActivo,
         siguienteId: Estado.siguienteId,
         siguienteSala: Estado.siguienteSala,
@@ -458,13 +413,11 @@ function guardarEstado() {
         simFugasActivas: Estado.simFugasActivas,
         simFugasActivo: Estado.simFugasActivo,
         simAguaPerdida: Estado.simAguaPerdida,
-        diasMes: Estado.diasMes,
       })
     );
     lsFallido = false;
     ocultarAvisoLS();
   } catch (_) {
-    // Almacenamiento lleno o bloqueado: la app sigue funcionando sin guardar.
     if (!lsFallido) {
       lsFallido = true;
       mostrarAvisoLS();
@@ -472,7 +425,6 @@ function guardarEstado() {
   }
 }
 
-// Muestra / oculta un aviso discreto cuando localStorage falla (2.2)
 function mostrarAvisoLS() {
   let aviso = $('aviso-ls');
   if (!aviso) {
@@ -499,30 +451,25 @@ function ocultarAvisoLS() {
   }
 }
 
-// Deserialización: arreglos -> Map reactivos + reconstrucción del DOM.
-// Sin estado v3 no se siembra nada: el onboarding se encarga de crear la casa inicial.
 function cargarEstado() {
   let g = null;
   try {
     g = JSON.parse(localStorage.getItem(CLAVE_LS));
   } catch (_) {
-    // localStorage bloqueado: la app funciona solo en memoria.
+    // Funciona en memoria si localStorage está bloqueado
   }
 
   const valido =
     g && [g.pisos, g.habitaciones, g.dispositivos].every(Array.isArray) && g.pisos.length;
 
-  pausado = true; // restaurar = muchas escrituras; se notifica una sola vez al final
+  pausado = true;
   try {
     if (valido) {
       Estado.version = 3;
       Estado.onboardingCompletado = Boolean(g.onboardingCompletado);
       Estado.perfil = normalizarPerfil(g.perfil);
       Estado.habitantes = entero(g.habitantes, 1, 50);
-      Estado.reciboM3 = Math.max(0, Math.min(Number(g.reciboM3) || 0, 999));
-      Estado.capacidad = [450, 750, 1100, 2500].includes(g.capacidad)
-        ? g.capacidad
-        : capacidadParaHabitantes(Estado.habitantes);
+      Estado.capacidad = CAPACIDAD_POR_PERFIL[Estado.perfil] || 750;
       Estado.siguienteId = Number(g.siguienteId) || 1;
       Estado.siguienteSala = Number(g.siguienteSala) || 1;
       Estado.siguientePiso = Number(g.siguientePiso) || 1;
@@ -542,7 +489,6 @@ function cargarEstado() {
         ? g.simModoSuministro
         : 'normal';
       Estado.simSeguirSinAgua = Boolean(g.simSeguirSinAgua);
-      // Un v3 anterior guardaba modo manual/auto y el encendido: se traducen.
       Estado.simBombaActiva =
         typeof g.simBombaActiva === 'boolean'
           ? g.simBombaActiva
@@ -554,8 +500,6 @@ function cargarEstado() {
         ? g.simFugasActivas.filter((id) => typeof id === 'string')
         : [];
       Estado.simAguaPerdida = Math.max(0, Number(g.simAguaPerdida) || 0);
-      Estado.diasMes = Number(g.diasMes) || CONFIG.diasMes;
-      CONFIG.diasMes = Estado.diasMes;
 
       g.pisos.forEach(([k, v]) => Estado.pisos.set(k, v));
       Estado.pisoActivo = Estado.pisos.has(g.pisoActivo)
@@ -566,14 +510,11 @@ function cargarEstado() {
         if (!Estado.pisos.has(v.piso)) {
           return;
         }
-        // Retrocompatibilidad: estados viejos no tienen cx/cy -> asignar primer hueco libre.
         if (typeof v.cx !== 'number' || typeof v.cy !== 'number') {
           const libre = primerHuecoLibre(v.piso, v.cs || 1, v.rs || 1);
           v.cx = libre.cx;
           v.cy = libre.cy;
         }
-        // Migración en el borde: los estados viejos solo traían el nombre.
-        // Desde aquí el tipo y el rol son dato, no texto deducido en cada cálculo.
         if (!esTipoSala(v.tipo)) {
           const inf = inferirTipoSala(v.nombre);
           v.tipo = inf.tipo;
@@ -603,15 +544,11 @@ function cargarEstado() {
         Estado.dispositivos.set(k, v);
         montarDispositivo(k);
       });
-      // Un dispositivo borrado invalida su fuga: se descarta al cargar.
       Estado.simFugasActivas = Estado.simFugasActivas.filter((id) => Estado.dispositivos.has(id));
-      // Los usos ya no se editan por dispositivo: se sincronizan con el nivel.
       recalcularUsosPorNivel();
     } else {
-      // Estado limpio para el onboarding.
       Estado.onboardingCompletado = false;
       Estado.perfil = 'bajo';
-      Estado.reciboM3 = 0;
       Estado.habitantes = 4;
       Estado.capacidad = 750;
       Estado.pisoActivo = null;
@@ -630,15 +567,13 @@ function cargarEstado() {
       Estado.simFugasActivas = [];
       Estado.simFugasActivo = true;
       Estado.simAguaPerdida = 0;
-      Estado.diasMes = CONFIG.diasMes;
     }
   } finally {
     pausado = false;
   }
 
-  $('capacidad').value = Estado.capacidad;
-  $('habitantes').value = Estado.habitantes;
-  $('recibo-simas').value = Estado.reciboM3 > 0 ? Estado.reciboM3 : '';
+  $('capacidad').textContent = Estado.capacidad + ' L';
+  $('habitantes').textContent = Estado.habitantes;
   renderTabs();
   if (Estado.pisoActivo && Estado.pisos.has(Estado.pisoActivo)) {
     activarPiso(Estado.pisoActivo);
@@ -657,7 +592,6 @@ const entero = (v, min, max) => {
   }
   return Math.min(Math.max(n, min), max);
 };
-const limiteOMS = () => Estado.habitantes * CONFIG.litrosOMS;
 
 function flujoDe(d) {
   const c = CATALOGO[d.tipo];
@@ -681,11 +615,7 @@ function litrosConFlujo(d, flujo) {
 
 const litrosDe = (d) => litrosConFlujo(d, flujoDe(d));
 
-// Calcula el uso estimado de un dispositivo nuevo a partir del tamaño de la vivienda.
-// Así el usuario solo coloca el dispositivo y no escribe minutos, cargas ni descargas.
-/* ---------- Tipo y rol de habitación ---------- */
-// El tipo es dato, no texto: antes baseUso() adivinaba el contexto leyendo el
-// nombre con regex, así que renombrar "Baño 2" movía litros sin avisar.
+// Tipo y rol de habitación
 const TIPOS_SALA = [
   { id: 'recamara', nombre: 'Recámara', icono: '🛏', genero: 'f' },
   { id: 'bano', nombre: 'Baño', icono: '🚿', genero: 'm' },
@@ -703,19 +633,6 @@ const tipoSala = (id) => TIPOS_SALA.find((t) => t.id === id) || TIPOS_SALA[0];
 
 const esTipoSala = (id) => TIPOS_SALA.some((t) => t.id === id);
 
-// "Recámara secundaria" / "Baño principal": el adjetivo concuerda con el tipo.
-function etiquetaRol(tipoId, rol) {
-  const t = tipoSala(tipoId);
-  if (rol === 'medio') {
-    return 'Medio baño';
-  }
-  if (rol === 'secundario') {
-    return t.genero === 'f' ? 'Secundaria' : 'Secundario';
-  }
-  return 'Principal';
-}
-
-// Solo para estados sin tipo: la heurística vive en el borde, nunca en el cálculo.
 function inferirTipoSala(nombre) {
   const n = String(nombre || '').toLowerCase();
   if (/cocina/.test(n)) {
@@ -748,14 +665,15 @@ function inferirTipoSala(nombre) {
   return { tipo: 'recamara', rol: null };
 }
 
+const PESO_ROL = { principal: 3, medio: 2, secundario: 1 };
+
 function baseUso(tipo, salaId = null) {
   const c = CATALOGO[tipo];
   if (!c) {
-    return { clave: null, uso: 0 };
+    return { clave: null, uso: 0, peso: 1 };
   }
   if (c.fijo) {
-    // Caudal continuo (fugas): no es demanda repartible entre aparatos.
-    return { clave: null, uso: c.sugerido };
+    return { clave: null, uso: c.sugerido, peso: 1 };
   }
 
   const tabla = PROMEDIOS[normalizarPerfil(Estado.perfil)] || PROMEDIOS.bajo;
@@ -763,42 +681,18 @@ function baseUso(tipo, salaId = null) {
   const tipoHab = hab && esTipoSala(hab.tipo) ? hab.tipo : 'recamara';
   const rol = hab && ROLES_SALA.includes(hab.rol) ? hab.rol : 'principal';
 
-  // El aire lavado es carga puntual: cada aparato enciende su propio horario, así
-  // que no comparte cuota con los demás. El rol del espacio sí lo dimensiona.
   if (tipo === 'aire') {
     return {
       clave: null,
       uso: rol === 'secundario' ? (tabla.aireSecundario ?? 6) : tabla.aire,
+      peso: 1,
     };
   }
 
   const esCocina = tipo === 'lavabo' && tipoHab === 'cocina';
-  const esMedio = rol === 'medio';
-  const esSecundario = rol === 'secundario';
-  let clave = tipo;
-  let uso;
-
-  if (esCocina) {
-    clave = 'lavaboCocina';
-    uso = tabla.lavaboCocina ?? tabla.lavabo;
-  } else if (tipo === 'inodoro' && esMedio) {
-    clave = 'inodoroMedio';
-    uso = tabla.inodoroMedio ?? tabla.inodoro;
-  } else if (tipo === 'lavabo' && esMedio) {
-    clave = 'lavaboMedio';
-    uso = tabla.lavaboMedio ?? tabla.lavabo;
-  } else if (tipo === 'ducha' && esSecundario) {
-    clave = 'duchaSecundaria';
-    uso = tabla.duchaSecundaria ?? tabla.ducha;
-  } else if (tipo === 'inodoro' && esSecundario) {
-    clave = 'inodoroSecundario';
-    uso = tabla.inodoroSecundario ?? tabla.inodoro;
-  } else if (tipo === 'lavabo' && esSecundario) {
-    clave = 'lavaboSecundario';
-    uso = tabla.lavaboSecundario ?? tabla.lavabo;
-  } else {
-    uso = tabla[tipo] ?? c.sugerido;
-  }
+  const esBano = tipoHab === 'bano';
+  const clave = esCocina ? 'lavaboCocina' : tipo;
+  let uso = esCocina ? (tabla.lavaboCocina ?? tabla.lavabo) : (tabla[tipo] ?? c.sugerido);
 
   if (c.porHabitante && !esCocina) {
     uso *= Math.max(1, Estado.habitantes);
@@ -807,18 +701,15 @@ function baseUso(tipo, salaId = null) {
     uso = (uso * Math.max(1, Estado.habitantes)) / 4;
   }
 
-  return { clave, uso: limitar(Math.round(uso), 0, 999) };
+  const esUsoBano = tipo === 'ducha' || tipo === 'inodoro' || tipo === 'lavabo';
+  const peso = esBano && esUsoBano ? (PESO_ROL[rol] ?? 1) : 1;
+  return { clave, uso: limitar(Math.round(uso), 0, 999), peso };
 }
 
-// Uso estimado de un aparato nuevo a partir del tamaño de la vivienda.
-// Es el total de su clase de uso; recalcularUsosPorNivel() lo reparte después
-// entre todos los aparatos de esa clase.
 function usoPromedio(tipo, salaId = null) {
   return baseUso(tipo, salaId).uso;
 }
 
-// El uso y la frecuencia dejan de ser datos del usuario: siempre salen del catálogo
-// y del promedio del nivel. Se aplica al cargar, al cambiar habitantes y al mover.
 function aplicarPromedioDispositivo(d, uso = null) {
   const c = CATALOGO[d.tipo];
   if (!c) {
@@ -829,26 +720,38 @@ function aplicarPromedioDispositivo(d, uso = null) {
 }
 
 function recalcularUsosPorNivel() {
-  // La demanda la genera la casa, no cada aparato: los que comparten clase de uso
-  // se reparten el promedio (16 descargas no se duplican por tener dos baños).
-  // Se reparte con resto entero para que la suma de la clase cuadre exacta.
   const grupos = new Map();
   Estado.dispositivos.forEach((d) => {
-    const { clave, uso } = baseUso(d.tipo, d.sala);
+    const { clave, uso, peso } = baseUso(d.tipo, d.sala);
     if (!clave) {
       aplicarPromedioDispositivo(d, uso);
       return;
     }
     if (!grupos.has(clave)) {
-      grupos.set(clave, []);
+      grupos.set(clave, { total: uso, items: [] });
     }
-    grupos.get(clave).push({ d, uso });
+    grupos.get(clave).items.push({ d, peso: peso || 1 });
   });
-  grupos.forEach((lista) => {
-    const total = lista[0].uso;
-    const base = Math.floor(total / lista.length);
-    const resto = total - base * lista.length;
-    lista.forEach((item, i) => aplicarPromedioDispositivo(item.d, base + (i < resto ? 1 : 0)));
+  grupos.forEach(({ total, items }) => {
+    const suma = items.reduce((s, it) => s + it.peso, 0);
+    let asignado = 0;
+    items.forEach((it) => {
+      const exacto = (total * it.peso) / suma;
+      it.base = Math.floor(exacto);
+      it.resto = exacto - it.base;
+      asignado += it.base;
+    });
+    let sobra = total - asignado;
+    items
+      .slice()
+      .sort((a, b) => b.resto - a.resto)
+      .forEach((it) => {
+        if (sobra > 0) {
+          it.base += 1;
+          sobra -= 1;
+        }
+      });
+    items.forEach((it) => aplicarPromedioDispositivo(it.d, it.base));
   });
   Estado.dispositivos.forEach((d, id) => {
     const el = $(id);
@@ -860,9 +763,6 @@ function recalcularUsosPorNivel() {
     actualizarCalculoEditor();
   }
 }
-
-const dispositivosDe = (salaId) =>
-  [...Estado.dispositivos].filter(([, d]) => d.sala === salaId).map(([k]) => k);
 
 function litrosTotales() {
   let t = 0;
@@ -882,8 +782,6 @@ function resumenFugas() {
   return { litros: Math.round(litros), cantidad };
 }
 
-// Agrupa el consumo diario por habitación y separa fugas (flujo fijo 24 h)
-// del consumo humano (curva horaria). Es la única fuente para el dashboard y los sensores.
 function resumenPorSala() {
   const porSala = {},
     fijoPorSala = {},
@@ -908,23 +806,27 @@ function resumenPorSala() {
   return { porSala, fijoPorSala, humanoPorSala, fugaEnSala, porPiso };
 }
 
-/* ---------- Fugas de la simulación (no tocan el plano estático) ---------- */
+// Fugas sorpresa de la simulación (independientes del plano estático)
+function fugaIniciada(id) {
+  const hora = Sim.horaInicioFuga.get(id);
+  return hora === undefined || Sim.tiempo >= hora * 3600;
+}
 
-// Caudal parásito del caso activo, en L/día. Cero si el dispositivo no está marcado.
-// Es independiente a propósito de resumenFugas(): "Mi casa" mide la casa real y el
-// simulador superpone un caso hipotético que no debe alterar la comparación con el recibo.
-function fugaSimDe(d, id) {
+function fugaSimDe(d, id, enVivo) {
   if (!Sim.fugasActivo || !Sim.fugasActivas.includes(id)) {
+    return 0;
+  }
+  if (enVivo && !fugaIniciada(id)) {
     return 0;
   }
   return TASAS_FUGA[d.tipo] || 0;
 }
 
-function fugasSimPorSala() {
+function fugasSimPorSala(enVivo) {
   const porSala = {};
   let total = 0;
   Estado.dispositivos.forEach((d, id) => {
-    const litros = fugaSimDe(d, id);
+    const litros = fugaSimDe(d, id, enVivo);
     if (litros > 0) {
       porSala[d.sala] = (porSala[d.sala] || 0) + litros;
       total += litros;
@@ -933,10 +835,10 @@ function fugasSimPorSala() {
   return { porSala, total };
 }
 
-// El caso es un código interno de cuatro dígitos y determinista:
-//   · último dígito 8 o 9 -> dos fugas (~20 %); cualquier otro -> una (~80 %).
-//   · el resto de los dígitos indexa la lista de dispositivos con tasa de fuga.
-// Así el mismo código repite el mismo caso y se puede anticipar sin ejecutarlo.
+function fugasIniciadas() {
+  return Sim.fugasActivas.filter((id) => fugaIniciada(id));
+}
+
 function normalizarCasoFuga(codigo) {
   const n = parseInt(String(codigo).replace(/\D/g, ''), 10);
   if (!Number.isFinite(n) || n < 1000) {
@@ -951,32 +853,20 @@ function generarCasoFuga(codigo) {
     .filter(([, d]) => TASAS_FUGA[d.tipo] > 0)
     .map(([id]) => id);
   if (!elegibles.length) {
-    return { codigo: base, ids: [] };
+    return { codigo: base, ids: [], horas: new Map() };
   }
   const indice = Math.floor(base / 10) % elegibles.length;
   const ids = [elegibles[indice]];
   if (base % 10 >= 8 && elegibles.length > 1) {
     ids.push(elegibles[(indice + 1) % elegibles.length]);
   }
-  return { codigo: base, ids };
+  const horas = new Map();
+  ids.forEach((id, i) => {
+    horas.set(id, 8 + ((Math.floor(base / 7) + i * 5) % 11));
+  });
+  return { codigo: base, ids, horas };
 }
 
-// Capacidad de tinaco sugerida según habitantes (valores admitidos por el selector).
-function capacidadParaHabitantes(n) {
-  if (n <= 2) {
-    return 450;
-  }
-  if (n <= 4) {
-    return 750;
-  }
-  if (n <= 6) {
-    return 1100;
-  }
-  return 2500;
-}
-
-// Equivalencia física del ahorro: cuántos tinacos completos representa.
-// Evita expresar el impacto en dinero y lo ancla al almacenamiento de la casa.
 function tinacosDe(litros) {
   const n = litros / Math.max(1, Estado.capacidad);
   if (n < 0.1) {
@@ -986,44 +876,6 @@ function tinacosDe(litros) {
   return txt + (txt === '1' ? ' tinaco lleno' : ' tinacos llenos');
 }
 
-// Compara el consumo mensual del plano contra el recibo mensual real.
-function calcularValidacionSimas(litrosDia) {
-  const m3Simulado = (litrosDia * Estado.diasMes) / 1000,
-    m3Real = Estado.reciboM3;
-  if (!m3Real || m3Real <= 0) {
-    return {
-      activo: false,
-      m3Simulado,
-      m3Real: 0,
-      errorPct: 0,
-      exactitudPct: 0,
-      difM3: 0,
-      coberturaPct: 0,
-      faltanteM3: 0,
-      faltanteLdia: 0,
-      metaM3: 0,
-    };
-  }
-  const difM3 = m3Simulado - m3Real,
-    errorPct = (Math.abs(difM3) / m3Real) * 100,
-    exactitudPct = Math.max(0, 100 - errorPct),
-    coberturaPct = (m3Simulado / m3Real) * 100,
-    faltanteM3 = m3Real - m3Simulado;
-  return {
-    activo: true,
-    m3Simulado,
-    m3Real,
-    errorPct,
-    exactitudPct,
-    difM3,
-    coberturaPct,
-    faltanteM3,
-    faltanteLdia: (faltanteM3 * 1000) / Math.max(1, Estado.diasMes),
-    metaM3: m3Real * 0.9,
-  };
-}
-
-// Identifica el dispositivo de mayor impacto y genera una recomendación persuasiva accionable
 function generarRecomendacion() {
   let mayor = null;
   Estado.dispositivos.forEach((d, id) => {
@@ -1053,7 +905,6 @@ function generarRecomendacion() {
     );
   }
 
-  // Busca si existe una modalidad más eficiente que la actual
   const fActual = flujoDe(d);
   let mejorModo = null;
   if (c.modos) {
@@ -1103,7 +954,7 @@ function generarRecomendacion() {
   );
 }
 
-/* ---------- Dashboard ---------- */
+// Dashboard y diagnóstico
 function animarCifra(el, fin, fmt) {
   const ini = el._v || 0;
   const t0 = performance.now();
@@ -1119,7 +970,6 @@ function animarCifra(el, fin, fmt) {
     }
   };
   el._raf = requestAnimationFrame(paso);
-  // Respaldo: si rAF se detiene (pestaña oculta, navegador sin animaciones), fija el valor final.
   el._to = setTimeout(() => {
     cancelAnimationFrame(el._raf);
     el._v = fin;
@@ -1127,161 +977,6 @@ function animarCifra(el, fin, fmt) {
   }, 700);
 }
 
-// Barra prominente: consumo virtual del plano vs recibo mensual real.
-function renderComparativa(litrosDia) {
-  const val = calcularValidacionSimas(litrosDia);
-  const titulo = $('comparativa-titulo');
-  const virtual = $('comparativa-virtual');
-  const real = $('comparativa-real');
-  const msg = $('comparativa-msg');
-  const barra = $('comparativa-barra');
-  const fill = $('comparativa-fill');
-  const bloque = $('comparativa-recibo');
-  if (!titulo || !virtual || !real || !msg || !barra || !fill || !bloque) {
-    return;
-  }
-
-  virtual.textContent = val.m3Simulado.toFixed(1);
-  real.textContent = val.activo ? val.m3Real.toFixed(1) : '—';
-
-  if (!val.activo) {
-    bloque.dataset.estado = 'sin-recibo';
-    titulo.textContent = 'Sin recibo registrado';
-    msg.textContent =
-      'Agrega tu recibo mensual en el resumen de tu casa para comparar el plano contra la realidad.';
-    fill.style.width = '0%';
-    barra.setAttribute('aria-valuenow', '0');
-    barra.setAttribute('aria-valuetext', 'Sin recibo');
-    return;
-  }
-
-  const cobertura = Math.max(0, val.coberturaPct);
-  const pctBarra = Math.min(cobertura, 100);
-  fill.style.width = pctBarra + '%';
-  barra.setAttribute('aria-valuenow', String(Math.round(pctBarra)));
-  barra.setAttribute('aria-valuetext', Math.round(cobertura) + ' % del recibo explicado');
-
-  if (litrosDia <= 0) {
-    bloque.dataset.estado = 'vacio';
-    titulo.textContent = 'Tu plano está vacío';
-    msg.textContent = 'Arrastra dispositivos a las habitaciones para empezar a investigar.';
-  } else if (cobertura < 85) {
-    bloque.dataset.estado = 'bajo';
-    titulo.textContent = 'Tu plano explica el ' + Math.round(cobertura) + ' % de tu recibo';
-    msg.textContent =
-      'Faltan ' +
-      Math.abs(val.faltanteM3).toFixed(1) +
-      ' m³/mes (' +
-      Math.round(Math.abs(val.faltanteLdia)) +
-      ' L/día). Revisa fugas, riego, visitas o usos que no modelaste. No se trata de añadir consumo, sino de encontrarlo.';
-  } else if (cobertura <= 115) {
-    bloque.dataset.estado = 'ok';
-    titulo.textContent = 'Tu plano coincide con tu recibo';
-    msg.textContent =
-      'La estimación virtual está dentro del ±15 % del recibo real. Buen punto de partida para investigar.';
-  } else {
-    bloque.dataset.estado = 'alto';
-    titulo.textContent = 'Tu plano estima más que tu recibo';
-    msg.textContent =
-      'Tu plano estima un ' +
-      Math.round(cobertura - 100) +
-      ' % adicional. Revisa tiempos, frecuencias o dispositivos duplicados.';
-  }
-}
-
-/* Resumen: el recibo se explica con una sola cifra y un estado claro. */
-function renderResumenRecibo(litrosDia) {
-  const val = calcularValidacionSimas(litrosDia);
-  const vs = $('m-vs-recibo');
-  const detalle = $('m-vs-recibo-detalle');
-  const recibo = $('m-recibo-real');
-  const dif = $('m-recibo-dif');
-
-  if (vs && detalle) {
-    delete vs.dataset.tono;
-    if (!val.activo) {
-      vs.textContent = '—';
-      detalle.textContent = 'Agrega tu recibo mensual';
-    } else if (litrosDia <= 0) {
-      vs.textContent = '—';
-      detalle.textContent = 'Tu plano aún está vacío';
-    } else {
-      const delta = val.difM3;
-      const diferencia = Math.abs(delta / Math.max(0.1, val.m3Real));
-      vs.textContent = (delta > 0 ? '+' : '') + delta.toFixed(1) + ' m³';
-      vs.dataset.tono = diferencia <= 0.15 ? 'ok' : delta > 0 ? 'alto' : 'bajo';
-      detalle.textContent =
-        val.m3Simulado.toFixed(1) + ' m³ estimados vs ' + val.m3Real.toFixed(1) + ' m³ reales';
-    }
-  }
-
-  if (recibo) {
-    recibo.textContent = val.activo ? val.m3Real.toFixed(1) + ' m³' : '—';
-  }
-
-  const noExplicada = $('m-no-explicada');
-  if (noExplicada) {
-    if (!val.activo || litrosDia <= 0) {
-      noExplicada.textContent = '—';
-    } else {
-      const l = Math.round(val.faltanteLdia);
-      noExplicada.textContent =
-        (l < 0 ? '−' : '') + NUM_ES.format(Math.abs(Math.round(l))) + ' L/día';
-    }
-  }
-
-  if (dif) {
-    delete dif.dataset.tono;
-    if (!val.activo || litrosDia <= 0) {
-      dif.textContent = '—';
-    } else {
-      const delta = val.difM3;
-      dif.textContent = (delta > 0 ? '+' : '') + delta.toFixed(1) + ' m³';
-      dif.dataset.tono =
-        Math.abs(delta / Math.max(0.1, val.m3Real)) <= 0.15 ? 'ok' : delta > 0 ? 'alto' : 'bajo';
-    }
-  }
-}
-
-/* Comparativa social: una barra y una frase, sin tres bloques de texto. */
-function renderSocial(L) {
-  const fill = $('norm-fill');
-  const valor = $('norm-valor');
-  const estado = $('norm-estado');
-  if (!fill || !valor || !estado) {
-    return;
-  }
-
-  const lHab = L / Estado.habitantes;
-  const pctNorm = Math.min((lHab / 220) * 100, 100);
-  valor.textContent = NUM_ES.format(Math.round(lHab)) + ' L/hab/día';
-  fill.style.width = pctNorm + '%';
-  fill.className =
-    'normativa__fill' + (lHab > CONFIG.refAlto ? ' rojo' : lHab > CONFIG.litrosOMS ? ' ambar' : '');
-
-  if (L === 0) {
-    estado.textContent = 'Referencias: eficiente 80 L · OMS 100 L · alto 180 L por persona al día.';
-  } else if (lHab <= CONFIG.refEficiente) {
-    estado.textContent = 'Estás en el nivel de un vecino eficiente de Torreón (≤ 80 L/hab/día).';
-  } else if (lHab <= CONFIG.litrosOMS) {
-    estado.textContent =
-      'Cerca de la referencia OMS. Te faltan ' +
-      Math.round(lHab - CONFIG.refEficiente) +
-      ' L/hab/día para igualar al vecino eficiente.';
-  } else if (lHab <= CONFIG.refAlto) {
-    estado.textContent =
-      'Superas la referencia OMS por ' +
-      Math.round(lHab - CONFIG.litrosOMS) +
-      ' L/hab/día, pero sigues debajo del promedio alto (180 L).';
-  } else {
-    estado.textContent =
-      'Superas el promedio residencial alto por ' +
-      Math.round(lHab - CONFIG.refAlto) +
-      ' L/hab/día.';
-  }
-}
-
-/* Una sola alerta contextual; la recomendación larga queda plegada. */
 function renderAlerta(L, desborde, fugas, pct) {
   const alertaEl = $('alerta');
   if (!alertaEl) {
@@ -1293,13 +988,13 @@ function renderAlerta(L, desborde, fugas, pct) {
   const lineas = [];
 
   if (L === 0) {
-    titulo = 'Tu plano está vacío';
-    lineas.push('Añade dispositivos a las habitaciones para empezar a medir.');
+    titulo = 'Sin consumo registrado';
+    lineas.push('El plano no tiene aparatos con consumo. Reinicia la casa para generar uno nuevo.');
   } else if (desborde) {
     nivel = 'critica';
     titulo = 'Almacenamiento agotado';
     lineas.push(
-      'El consumo diario supera la capacidad del tinaco. Revisa los usos más altos o cambia el almacenamiento.'
+      'El consumo diario supera la capacidad del tinaco. Cambia la eficiencia de los aparatos con más consumo.'
     );
   } else if (fugas.cantidad) {
     nivel = 'riesgo';
@@ -1313,23 +1008,13 @@ function renderAlerta(L, desborde, fugas, pct) {
         Math.round((fugas.litros / L) * 100) +
         ' % del consumo).'
     );
-  } else if (L > limiteOMS()) {
-    nivel = 'riesgo';
-    titulo = 'Sobre la referencia OMS';
-    lineas.push(
-      'El consumo supera los ' +
-        limiteOMS() +
-        ' L/día de referencia para ' +
-        Estado.habitantes +
-        ' persona(s).'
-    );
   } else if (pct >= 80) {
     nivel = 'riesgo';
     titulo = 'Margen ajustado';
     lineas.push('Queda poca reserva en el tinaco para el consumo estimado.');
   } else {
-    titulo = 'Consumo dentro de los límites';
-    lineas.push('Queda reserva suficiente y el consumo está bajo la referencia OMS.');
+    titulo = 'Consumo estable';
+    lineas.push('Queda reserva suficiente en el tinaco para el consumo estimado.');
   }
 
   alertaEl.className = 'alerta ' + nivel;
@@ -1351,31 +1036,35 @@ function renderAlerta(L, desborde, fugas, pct) {
   }
 }
 
-/* Lista breve de las habitaciones que más consumen, dentro del panel Consumo. */
-function renderTopSalas(porSala) {
+function resumenPorTipo() {
+  const porTipo = {};
+  Estado.dispositivos.forEach((d) => {
+    porTipo[d.tipo] = (porTipo[d.tipo] || 0) + litrosDe(d);
+  });
+  return porTipo;
+}
+
+function renderTopTipos(porTipo) {
   const cont = $('diag-top-salas');
   if (!cont) {
     return;
   }
 
   cont.innerHTML = '';
-  // Mismo orden que la dona (mayor a menor): así el punto de color de cada fila
-  // coincide con su segmento y la dona puede prescindir de su leyenda.
-  const filas = Object.entries(porSala)
+  const filas = Object.entries(porTipo)
     .filter(([, litros]) => litros > 0)
     .sort((a, b) => b[1] - a[1]);
 
   if (!filas.length) {
     const vacio = document.createElement('p');
     vacio.className = 'pista';
-    vacio.textContent = 'Aún no hay consumo registrado en el plano.';
+    vacio.textContent = 'Aún no hay consumo registrado.';
     cont.appendChild(vacio);
     return;
   }
 
   const maximo = filas[0][1] || 1;
-  filas.forEach(([id, litros], i) => {
-    const hab = Estado.habitaciones.get(id);
+  filas.forEach(([tipo, litros], i) => {
     const color = COLORES[i % COLORES.length];
     const fila = document.createElement('div');
     fila.className = 'diag-top__fila';
@@ -1389,7 +1078,7 @@ function renderTopSalas(porSala) {
     punto.style.background = color;
     const texto = document.createElement('span');
     texto.className = 'diag-top__texto';
-    texto.textContent = hab ? hab.nombre : 'Habitación';
+    texto.textContent = (CATALOGO[tipo] && CATALOGO[tipo].nombre) || tipo;
     nombre.append(punto, texto);
 
     const valor = document.createElement('strong');
@@ -1410,8 +1099,7 @@ function renderTopSalas(porSala) {
 
 function renderDashboard() {
   const L = litrosTotales(),
-    cap = Estado.capacidad,
-    lim = limiteOMS();
+    cap = Estado.capacidad;
   const pct = (L / cap) * 100,
     desborde = L > cap,
     fugas = resumenFugas();
@@ -1425,30 +1113,33 @@ function renderDashboard() {
 
   setCifra('m-litros', L, (n) => NUM_ES.format(Math.round(n)) + ' L');
   setCifra('m-fugas', fugas.litros, (n) => NUM_ES.format(Math.round(n)) + ' L/día');
-  setCifra('m-oms', lim, (n) => litrosTexto(n));
-  setCifra('m-uso-oms', (L / lim) * 100, (n) => Math.round(n) + ' %');
+  const porTipo = resumenPorTipo();
+  const mayor = Object.entries(porTipo).sort((a, b) => b[1] - a[1])[0];
+  const elMayor = $('m-mayor');
+  if (elMayor) {
+    elMayor.textContent = mayor
+      ? (CATALOGO[mayor[0]] ? CATALOGO[mayor[0]].nombre : mayor[0]) + ' · ' + litrosTexto(mayor[1])
+      : '—';
+  }
+  setCifra('m-pct-tinaco', (L / Math.max(1, cap)) * 100, (n) => Math.round(n) + ' %');
   setCifra('m-litros-mes', L * CONFIG.diasMes, (n) => {
     const litrosMes = Math.round(n),
       m3Mes = (litrosMes / 1000).toFixed(1);
     return NUM_ES.format(Math.round(litrosMes)) + ' L (' + m3Mes + ' m³)';
   });
 
-  // Segunda línea del KPI principal: el recibo se captura por mes, así que se
-  // ofrece el equivalente mensual sin obligar a hacer la cuenta.
   const mesCorta = $('m-litros-mes-corta');
   if (mesCorta) {
     mesCorta.textContent =
       L > 0
         ? '≈ ' + ((L * CONFIG.diasMes) / 1000).toFixed(1) + ' m³ al mes'
-        : 'aún sin dispositivos';
+        : 'sin consumo registrado';
   }
 
   const fugasDetalle = $('m-fugas-detalle');
   const hayAlertaFuga =
     fugas.cantidad > 0 || Boolean(Sim.fugasReveladas && Sim.fugasActivas.length);
   if (fugasDetalle) {
-    // El plano sigue siendo la casa real; si la simulación reveló un caso,
-    // se nombra aparte para que el 0 L/día no contradiga el brillo del aparato.
     const partes = [
       fugas.cantidad
         ? fugas.cantidad + (fugas.cantidad === 1 ? ' fuga activa' : ' fugas activas')
@@ -1460,7 +1151,6 @@ function renderDashboard() {
     fugasDetalle.textContent = partes.join(' · ');
   }
 
-  // El color del punto es el único indicador de alarma que queda en la franja.
   const chipFugas = $('kpi-fugas');
   if (chipFugas) {
     if (hayAlertaFuga) {
@@ -1470,12 +1160,8 @@ function renderDashboard() {
     }
   }
 
-  renderComparativa(L);
-  renderResumenRecibo(L);
-  renderSocial(L);
   renderAlerta(L, desborde, fugas, pct);
 
-  // Litros por habitación (rótulo + mapa de calor) y por piso (pestaña)
   const { porSala, fugaEnSala, porPiso } = resumenPorSala();
 
   document.querySelectorAll('.sala').forEach((s) => {
@@ -1500,17 +1186,17 @@ function renderDashboard() {
     t.querySelector('small').textContent = n ? litrosTexto(n) : '';
   });
 
-  renderTopSalas(porSala);
+  renderTopTipos(porTipo);
 
   if (editandoId) {
     actualizarCalculoEditor();
   }
-  actualizarGrafico(porSala);
-  simRender(); // el caudal y los tiempos dependen de los dispositivos
-  renderSensores(); // fuerza la lectura al cambiar el plano, aunque el simulador esté pausado
+  actualizarGrafico(porTipo);
+  simRender();
+  renderSensores();
 }
 
-/* ---------- Analítica: gráfico (Chart.js) y reporte PDF (jsPDF) ---------- */
+// Gráfico (Chart.js) y exportación (jsPDF / PNG)
 let grafico = null;
 const COLORES = [
   '#34D399',
@@ -1523,38 +1209,19 @@ const COLORES = [
   '#94A3B8',
 ];
 
-// Se invoca desde renderDashboard(), que a su vez dispara el Proxy: el gráfico nunca se llama a mano
-function actualizarGrafico(porSala) {
-  // Orden descendente: la lista de habitaciones repite este orden y asigna
-  // el color por índice, así que los puntos coinciden con los segmentos.
-  const ids = Object.keys(porSala)
-      .filter((id) => porSala[id] > 0)
-      .sort((a, b) => porSala[b] - porSala[a]),
-    vacio = ids.length === 0;
+function actualizarGrafico(porTipo) {
+  const tipos = Object.keys(porTipo)
+      .filter((t) => porTipo[t] > 0)
+      .sort((a, b) => porTipo[b] - porTipo[a]),
+    vacio = tipos.length === 0;
   $('grafico-vacio').hidden = !vacio;
   $('grafico-consumo').style.visibility = vacio ? 'hidden' : 'visible';
 
-  // Si el constructor está oculto el canvas mide 0: se crea/actualiza al mostrarlo.
-  if (!$('grafico-consumo').clientWidth) {
+  if (!$('grafico-consumo').clientWidth || typeof Chart === 'undefined') {
     return;
   }
-
-  if (typeof Chart === 'undefined') {
-    return;
-  } // CDN no disponible: el resto sigue funcionando
-  const multiPiso = Estado.pisos.size > 1;
-  const etiquetas = ids.map((id) => {
-    const hab = Estado.habitaciones.get(id);
-    if (!hab) {
-      return id;
-    }
-    if (!multiPiso) {
-      return hab.nombre;
-    }
-    const piso = Estado.pisos.get(hab.piso);
-    return hab.nombre + ' (' + (piso ? piso.nombre : '') + ')';
-  });
-  const valores = ids.map((id) => Math.round(porSala[id]));
+  const etiquetas = tipos.map((t) => (CATALOGO[t] ? CATALOGO[t].nombre : t));
+  const valores = tipos.map((t) => Math.round(porTipo[t]));
 
   if (!grafico) {
     grafico = new Chart($('grafico-consumo'), {
@@ -1575,7 +1242,6 @@ function actualizarGrafico(porSala) {
         cutout: '62%',
         animation: { duration: 400 },
         plugins: {
-          // Sin leyenda: la lista de habitaciones de al lado ya nombra cada color.
           legend: { display: false },
           tooltip: {
             callbacks: {
@@ -1609,11 +1275,9 @@ function exportarPDF() {
   const L = litrosTotales(),
     litrosMes = L * CONFIG.diasMes,
     m3Mes = (litrosMes / 1000).toFixed(2),
-    lim = limiteOMS(),
     lHab = (L / Estado.habitantes).toFixed(1),
     fugas = resumenFugas(),
     fugasSim = fugasSimPorSala(),
-    val = calcularValidacionSimas(L),
     rec = generarRecomendacion();
   let y = 20;
   const linea = (txt, tam, negrita) => {
@@ -1663,40 +1327,6 @@ function exportarPDF() {
       tinacosDe(fugas.litros * CONFIG.diasMes) +
       ')'
   );
-  linea(
-    'Referencia OMS: ' +
-      lim +
-      ' L/día (' +
-      Math.round((L / lim) * 100) +
-      ' % de la referencia) | Torreón: eficiente 80 L/hab, OMS 100 L/hab, alto 180 L/hab'
-  );
-  y += 4;
-
-  linea('Comparación contra el recibo mensual', 13, true);
-  if (val.activo) {
-    linea(
-      'Volumen mensual simulado: ' +
-        val.m3Simulado.toFixed(2) +
-        ' m³/mes | Recibo mensual real: ' +
-        val.m3Real.toFixed(2) +
-        ' m³/mes'
-    );
-    linea(
-      'Desviación absoluta: ' +
-        Math.abs(val.difM3).toFixed(2) +
-        ' m³/mes | Error relativo: ' +
-        val.errorPct.toFixed(2) +
-        ' % | Exactitud del modelo: ' +
-        val.exactitudPct.toFixed(2) +
-        ' %'
-    );
-  } else {
-    linea(
-      'Volumen mensual simulado: ' +
-        val.m3Simulado.toFixed(2) +
-        ' m³/mes (No se ingresó el recibo mensual para contraste).'
-    );
-  }
   y += 4;
 
   linea('Consumo por habitación', 13, true);
@@ -1767,23 +1397,19 @@ function exportarPDF() {
     linea(textoPlano(rec));
   }
 
-  if (L > lim || fugas.cantidad || fugasSim.total > 0) {
+  if (fugas.cantidad || fugasSim.total > 0) {
     y += 4;
     linea('ADVERTENCIA AMBIENTAL (COMARCA LAGUNERA)', 13, true);
     linea(
-      (L > lim ? 'El consumo supera la referencia de la OMS (' + lim + ' L/día). ' : '') +
-        (fugas.cantidad || fugasSim.total
-          ? 'Hay fugas activas que desperdician ' + (fugas.litros + fugasSim.total) + ' L/día. '
-          : '') +
+      (fugas.cantidad || fugasSim.total
+        ? 'Hay fugas activas que desperdician ' + (fugas.litros + fugasSim.total) + ' L/día. '
+        : '') +
         'En la Comarca Lagunera el agua subterránea presenta arsénico de origen natural (HACRE) en parte del acuífero; ' +
         'el sobreconsumo y las fugas aumentan la presión sobre la extracción de agua profunda.'
     );
   }
   y += 6;
-  linea(
-    'Valores estimados con el simulador SmartGota; validación sujeta a contraste con medidor físico SIMAS.',
-    9
-  );
+  linea('Valores estimados con el simulador educativo SmartGota.', 9);
   doc.save('reporte-smartgota.pdf');
 }
 $('btn-pdf').addEventListener('click', exportarPDF);
@@ -1802,14 +1428,13 @@ function exportarPNG() {
 }
 $('btn-png').addEventListener('click', exportarPNG);
 
-/* ---------- Pisos ---------- */
+// Pisos y pestañas
 function crearPiso(nombre) {
   const id = 'p' + Estado.siguientePiso++;
   Estado.pisos.set(id, { id, nombre });
   return id;
 }
 
-// Reconstruye SOLO las pestañas (no los cuartos) a partir de Estado.pisos
 function renderTabs() {
   $('tabs').innerHTML = '';
   Estado.pisos.forEach((p) => {
@@ -1820,21 +1445,7 @@ function renderTabs() {
     t.setAttribute('aria-selected', Estado.pisoActivo === p.id ? 'true' : 'false');
     t.tabIndex = 0;
     t.innerHTML = '<span class="tab__nombre"></span><small></small>';
-    t.querySelector('.tab__nombre').textContent = p.nombre; // textContent: sin HTML del usuario
-    if (Estado.pisos.size > 1) {
-      // con un solo piso no hay X
-      const x = document.createElement('button');
-      x.type = 'button';
-      x.className = 'tab__x';
-      x.textContent = '✕';
-      x.title = 'Eliminar piso';
-      x.setAttribute('aria-label', 'Eliminar piso');
-      x.addEventListener('click', (e) => {
-        e.stopPropagation();
-        eliminarPiso(p.id);
-      });
-      t.appendChild(x);
-    }
+    t.querySelector('.tab__nombre').textContent = p.nombre;
     t.addEventListener('click', () => activarPiso(p.id));
     t.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -1853,37 +1464,13 @@ function activarPiso(id) {
     t.classList.toggle('activa', t.dataset.piso === id);
     t.setAttribute('aria-selected', t.dataset.piso === id ? 'true' : 'false');
   });
-  // hidden (no remove): conserva clones y el width/height que dejó el resize nativo
   document
     .querySelectorAll('.sala')
     .forEach((s) => (s.hidden = Estado.habitaciones.get(s.dataset.sala).piso !== id));
   renderizarGuiaGrid(false);
 }
 
-/* ===========================================================
-   BORRADO EN CASCADA:  Piso -> Habitaciones -> Dispositivos
-   eliminarPiso(p)
-     └─ por cada habitación h con h.piso === p     (busca en Estado.habitaciones)
-          └─ destruirHabitacion(h)
-               ├─ borra de Estado.dispositivos todo d con d.sala === h  (sale del cálculo)
-               ├─ borra h de Estado.habitaciones
-               └─ remove() del nodo .sala (arrastra a sus clones del DOM)
-     └─ borra p de Estado.pisos, elige otra pestaña activa (el Proxy repinta y guarda solo)
-   =========================================================== */
-function destruirHabitacion(id) {
-  dispositivosDe(id).forEach((k) => {
-    if (k === editandoId) {
-      cerrarEditor();
-    }
-    Estado.dispositivos.delete(k);
-  });
-  Estado.habitaciones.delete(id);
-  salaEl(id).remove();
-  recalcularUsosPorNivel();
-  renderizarGuiaGrid(false);
-}
-
-/* ---------- Modal UI (Promise: modalPrompt / modalConfirm) ---------- */
+// Modal de confirmación
 let resolverModal = null;
 
 function abrirModal({ titulo, mensaje = '', inicial = '', confirmar = false }) {
@@ -1896,7 +1483,6 @@ function abrirModal({ titulo, mensaje = '', inicial = '', confirmar = false }) {
     ok = $('modal-ok'),
     cancelar = $('modal-cancelar');
 
-  // Restaurar estado por defecto (el listener de Ayuda lo modifica)
   ok.textContent = 'Aceptar';
   cancelar.hidden = false;
 
@@ -1928,198 +1514,8 @@ function abrirModal({ titulo, mensaje = '', inicial = '', confirmar = false }) {
   });
 }
 
-const modalPrompt = (titulo, inicial = '') => abrirModal({ titulo, inicial, confirmar: false });
-
 const modalConfirm = (mensaje, titulo = 'Confirmar acción') =>
   abrirModal({ titulo, mensaje, confirmar: true });
-
-/* ---------- Diálogo de habitación (tipo + rol) ---------- */
-// El tipo es la decisión de fondo; el nombre queda como etiqueta libre.
-let resolverSala = null;
-let salaTipo = 'recamara';
-let salaRol = 'principal';
-let salaEditando = null;
-
-const deLaSala = (t) => (t.genero === 'f' ? 'de la ' : 'del ') + t.nombre.toLowerCase();
-
-// Nombre por defecto con el primer número libre: "Baño", "Baño 2", "Baño 3"…
-function nombreSugeridoSala(tipoId, exceptoId = null) {
-  const base = tipoSala(tipoId).nombre;
-  const usados = new Set();
-  Estado.habitaciones.forEach((h) => {
-    if (h.id !== exceptoId && h.tipo === tipoId) {
-      usados.add(h.nombre);
-    }
-  });
-  if (!usados.has(base)) {
-    return base;
-  }
-  let n = 2;
-  while (usados.has(base + ' ' + n)) {
-    n += 1;
-  }
-  return base + ' ' + n;
-}
-
-function pintarTiposSala() {
-  const cont = $('sala-tipos');
-  if (!cont) {
-    return;
-  }
-  cont.innerHTML = TIPOS_SALA.map(
-    (t) =>
-      '<label class="sala-tipo">' +
-      '<input type="radio" name="sala-tipo-sel" value="' +
-      t.id +
-      '"' +
-      (t.id === salaTipo ? ' checked' : '') +
-      ' />' +
-      '<span class="sala-tipo__cara"><span class="sala-tipo__icono" aria-hidden="true">' +
-      t.icono +
-      '</span>' +
-      t.nombre +
-      '</span></label>'
-  ).join('');
-}
-
-function pintarRolesSala() {
-  const cont = $('sala-roles-opciones');
-  const leyenda = $('sala-roles-leyenda');
-  if (!cont) {
-    return;
-  }
-  const roles =
-    salaTipo === 'bano' ? ['principal', 'secundario', 'medio'] : ['principal', 'secundario'];
-  if (!roles.includes(salaRol)) {
-    salaRol = 'principal';
-  }
-  if (leyenda) {
-    leyenda.textContent = 'Rol ' + deLaSala(tipoSala(salaTipo));
-  }
-  cont.innerHTML = roles
-    .map(
-      (r) =>
-        '<label class="sala-tipo">' +
-        '<input type="radio" name="sala-rol-sel" value="' +
-        r +
-        '"' +
-        (r === salaRol ? ' checked' : '') +
-        ' />' +
-        '<span class="sala-tipo__cara">' +
-        etiquetaRol(salaTipo, r) +
-        '</span></label>'
-    )
-    .join('');
-}
-
-// Si el nombre sigue siendo el sugerido, acompaña al tipo; si el usuario escribió
-// uno propio, se respeta.
-function sincronizarNombreSala() {
-  const campo = $('sala-nombre');
-  if (!campo) {
-    return;
-  }
-  if (!campo.value.trim() || campo.dataset.auto === '1') {
-    campo.value = nombreSugeridoSala(salaTipo, salaEditando);
-    campo.dataset.auto = '1';
-  }
-}
-
-function cerrarModalSala(valor) {
-  const modal = $('modal-sala');
-  if (!resolverSala) {
-    return;
-  }
-  const resolver = resolverSala;
-  resolverSala = null;
-  modal.hidden = true;
-  resolver(valor);
-}
-
-function abrirModalSala(hab = null) {
-  const modal = $('modal-sala');
-  if (!modal) {
-    return Promise.resolve(null);
-  }
-  if (resolverSala) {
-    const previo = resolverSala;
-    resolverSala = null;
-    previo(null);
-  }
-
-  salaEditando = hab ? hab.id : null;
-  salaTipo = hab && esTipoSala(hab.tipo) ? hab.tipo : 'recamara';
-  salaRol = hab && ROLES_SALA.includes(hab.rol) ? hab.rol : 'principal';
-
-  $('sala-titulo').textContent = hab ? 'Editar habitación' : 'Nueva habitación';
-  $('sala-ok').textContent = hab ? 'Guardar' : 'Añadir';
-  const piso = Estado.pisos.get(hab ? hab.piso : Estado.pisoActivo);
-  $('sala-msg').textContent = hab
-    ? 'Los dispositivos se quedan donde están.'
-    : 'Se añadirá en ' + (piso ? piso.nombre : 'el piso activo') + '.';
-
-  const campo = $('sala-nombre');
-  campo.value = hab ? hab.nombre : nombreSugeridoSala(salaTipo);
-  campo.dataset.auto = hab ? '0' : '1';
-  campo.removeAttribute('aria-invalid');
-
-  pintarTiposSala();
-  pintarRolesSala();
-  modal.hidden = false;
-  queueMicrotask(() => {
-    const elegido = modal.querySelector('input[name="sala-tipo-sel"]:checked');
-    (elegido || campo).focus();
-  });
-
-  return new Promise((resolve) => {
-    resolverSala = resolve;
-  });
-}
-
-$('sala-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const campo = $('sala-nombre');
-  const nombre = campo.value.trim().slice(0, 28);
-  if (!nombre) {
-    campo.setAttribute('aria-invalid', 'true');
-    campo.focus();
-    return;
-  }
-  cerrarModalSala({ nombre, tipo: salaTipo, rol: salaRol });
-});
-
-$('sala-cancelar').addEventListener('click', () => cerrarModalSala(null));
-
-$('sala-tipos').addEventListener('change', (e) => {
-  if (e.target.name !== 'sala-tipo-sel') {
-    return;
-  }
-  salaTipo = e.target.value;
-  pintarRolesSala();
-  sincronizarNombreSala();
-});
-
-$('sala-roles-opciones').addEventListener('change', (e) => {
-  if (e.target.name === 'sala-rol-sel') {
-    salaRol = e.target.value;
-  }
-});
-
-$('sala-nombre').addEventListener('input', (e) => {
-  e.target.dataset.auto = '0';
-  e.target.removeAttribute('aria-invalid');
-});
-
-$('modal-sala').addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    cerrarModalSala(null);
-    return;
-  }
-  if (e.key === 'Tab') {
-    trapaFoco($('modal-sala'), e);
-  }
-});
 
 $('modal-form').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -2148,39 +1544,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-async function eliminarPiso(id) {
-  if (Estado.pisos.size <= 1) {
-    return;
-  } // siempre debe quedar un piso
-  const salas = [...Estado.habitaciones.values()].filter((h) => h.piso === id).map((h) => h.id);
-  const nDisp = salas.reduce((suma, sid) => suma + dispositivosDe(sid).length, 0);
-  if (
-    salas.length &&
-    !(await modalConfirm(
-      marcar(Estado.pisos.get(id).nombre) +
-        ' tiene ' +
-        salas.length +
-        ' habitación(es) y ' +
-        nDisp +
-        ' dispositivo(s). Todo se eliminará. ¿Continuar?',
-      'Eliminar piso'
-    ))
-  ) {
-    return;
-  }
-
-  salas.forEach((sid) => destruirHabitacion(sid)); // nivel 2 -> nivel 3
-  Estado.pisos.delete(id);
-  if (Estado.pisoActivo === id) {
-    Estado.pisoActivo = Estado.pisos.keys().next().value;
-  }
-  renderTabs();
-  activarPiso(Estado.pisoActivo);
-}
-
-/* ---------- Habitaciones ---------- */
-// Encuentra la primera celda libre (cx, cy, base 1) en el piso para una habitación de cs x rs celdas.
-// Retorna null si no hay hueco en el área razonable.
+// Habitaciones y grilla del plano
 function primerHuecoLibre(piso, cs, rs) {
   const habs = [...Estado.habitaciones.values()].filter((h) => h.piso === piso);
   const m = medidasGrid();
@@ -2210,33 +1574,11 @@ function primerHuecoLibre(piso, cs, rs) {
       }
     }
   }
-  // Fallback: (1,1) aunque haya solapamiento; el usuario puede reubicar después
   return { cx: 1, cy: 1 };
-}
-
-// Verifica si las celdas (cx,cy) con tamaño (cs,rs) colisionan con otra habitación del mismo piso
-function celdasOcupadas(piso, cx, cy, cs, rs, excluirId) {
-  const m = medidasGrid();
-  const colsMax = m.cols;
-  const filasLimite = Math.min(MAX_FILAS, Math.max(FILAS_MIN, filasOcupadasPiso(piso) + 1));
-  if (cx < 1 || cy < 1 || cx + cs - 1 > colsMax || cy + rs - 1 > filasLimite) {
-    return true;
-  }
-  for (const [id, h] of Estado.habitaciones) {
-    if (id === excluirId || h.piso !== piso) {
-      continue;
-    }
-    if (cx < h.cx + h.cs && cx + cs > h.cx && cy < h.cy + h.rs && cy + rs > h.cy) {
-      return true;
-    }
-  }
-  return false;
 }
 
 function crearHabitacion(nombre, piso, opciones = {}) {
   const id = 'h' + Estado.siguienteSala++;
-  // En móvil el plano puede tener una sola columna. Ajustar el tamaño lógico
-  // evita que dos habitaciones con cs=2 caigan en la misma celda de respaldo.
   const columnas = Math.max(1, Number(medidasGrid().cols) || 1);
   const cs = Math.min(opciones.cs || 1, columnas);
   const rs = Math.min(opciones.rs || 1, MAX_FILAS);
@@ -2257,7 +1599,7 @@ function crearHabitacion(nombre, piso, opciones = {}) {
     cy: coords.cy,
     cs,
     rs,
-  }); // cs/rs = columnas y filas que ocupa
+  });
   const el = montarHabitacion(Estado.habitaciones.get(id));
   renderizarGuiaGrid(false);
   return el;
@@ -2276,128 +1618,23 @@ function pintarRotuloSala(el, hab) {
   em.append(icono, ' ' + hab.nombre);
 }
 
-// Construye el nodo .sala desde su registro (al crearla y al restaurar desde localStorage)
 function montarHabitacion(hab) {
   const { id, piso } = hab;
-
   const el = document.createElement('div');
   el.className = 'sala';
   el.dataset.sala = id;
   el.hidden = piso !== Estado.pisoActivo;
-  el.tabIndex = 0;
-  el.innerHTML =
-    '<span class="sala__mover" draggable="true" title="Arrastra para reordenar habitación" aria-label="Reordenar habitación" tabindex="0">⠿</span>' +
-    '<span class="sala__rotulo" title="Doble clic para editar el tipo y el nombre"><em></em><b></b></span>' +
-    '<button class="sala__x" type="button" title="Eliminar habitación" aria-label="Eliminar habitación">✕</button>' +
-    '<span class="sala__asa" title="Arrastra para cambiar el tamaño" tabindex="0"></span>';
+  el.innerHTML = '<span class="sala__rotulo"><em></em><b></b></span>';
   pintarRotuloSala(el, hab);
-
-  const btnMover = el.querySelector('.sala__mover');
-  btnMover.addEventListener('dragstart', (e) => {
-    e.stopPropagation();
-    cerrarEditor();
-    empezarArrastre(e, { salaOrigen: id });
-    renderizarGuiaGrid(true); // mostrar 1 fila extra libre al arrastrar
-    if (e.dataTransfer.setDragImage) {
-      e.dataTransfer.setDragImage(el, 16, 16);
-    }
-    setTimeout(() => el.classList.add('arrastrando-sala'));
-  });
-  btnMover.addEventListener('dragend', () => {
-    arrastre = null;
-    removerFantasma();
-    renderizarGuiaGrid(false); // encojer si la fila extra quedó vacía
-    el.classList.remove('arrastrando-sala', 'sala-arrastrando');
-    document
-      .querySelectorAll('.sala.destino-sala')
-      .forEach((s) => s.classList.remove('destino-sala'));
-  });
-
-  el.querySelector('.sala__x').addEventListener('click', () => eliminarHabitacion(id));
-  el.querySelector('.sala__rotulo').addEventListener('dblclick', () => renombrarHabitacion(id));
-  activarSala(el);
-  activarRedimension(el, id);
   aplicarSpans(el, hab);
-  // Navegación por teclado: Enter/Espacio en la sala coloca el dispositivo seleccionado
-  el.addEventListener('keydown', (e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && seleccion) {
-      e.preventDefault();
-      cerrarEditor();
-      agregarDispositivo(seleccion, el, 0.5, 0.5);
-      seleccionarItem(null);
-    }
-  });
   $('plano').appendChild(el);
   return el;
 }
 
-async function renombrarHabitacion(id) {
-  const hab = Estado.habitaciones.get(id);
-  const datos = await abrirModalSala(hab);
-  if (!datos) {
-    return;
-  }
-  hab.nombre = datos.nombre;
-  hab.tipo = datos.tipo;
-  hab.rol = datos.rol;
-  pintarRotuloSala(salaEl(id), hab);
-  recalcularUsosPorNivel();
-}
-
-// Si se borra el último principal de un tipo, la primera secundaria asciende: un
-// tipo sin principal dejaría la casa sin la referencia de consumo de ese uso.
-function sucesorPrincipalSala(hab) {
-  if (!hab || hab.rol !== 'principal') {
-    return null;
-  }
-  const iguales = [...Estado.habitaciones.values()].filter(
-    (h) => h.tipo === hab.tipo && h.id !== hab.id
-  );
-  if (iguales.some((h) => h.rol === 'principal')) {
-    return null;
-  }
-  return iguales.find((h) => h.rol === 'secundario') || null;
-}
-
-async function eliminarHabitacion(id) {
-  const n = dispositivosDe(id).length;
-  const hab = Estado.habitaciones.get(id);
-  if (!hab) {
-    return;
-  }
-  const sucesor = sucesorPrincipalSala(hab);
-  let mensaje = '';
-  if (n) {
-    mensaje +=
-      marcar(hab.nombre) +
-      ' tiene ' +
-      n +
-      ' dispositivo(s). Se eliminarán y dejarán de contar en el consumo. ';
-  }
-  if (sucesor) {
-    mensaje +=
-      'Es el último ' +
-      tipoSala(hab.tipo).nombre.toLowerCase() +
-      ' principal: ' +
-      marcar(sucesor.nombre) +
-      ' pasará a principal. ';
-  }
-  if (mensaje && !(await modalConfirm(mensaje + '¿Continuar?', 'Eliminar habitación'))) {
-    return;
-  }
-  destruirHabitacion(id);
-  if (sucesor) {
-    sucesor.rol = 'principal';
-    recalcularUsosPorNivel();
-  }
-}
-
-/* ---------- Layout: redimensionado por celdas (Grid Spans) ---------- */
 const limitar = (n, min, max) => Math.min(Math.max(n, min), max);
 const MAX_FILAS = 8;
 const FILAS_MIN = 2;
 
-// Medidas reales de la grilla, leídas del CSS ya resuelto por el navegador
 function medidasGrid() {
   const e = getComputedStyle($('plano')),
     pistas = e.gridTemplateColumns.split(' ');
@@ -2409,8 +1646,6 @@ function medidasGrid() {
   };
 }
 
-// Calcula cuál es la última fila realmente ocupada por las habitaciones del piso dado.
-// base 1: si una habitación está en cy=3 con rs=2, ocupa filas 3 y 4.
 function filasOcupadasPiso(pisoId) {
   const habs = [...Estado.habitaciones.values()].filter((h) => h.piso === pisoId);
   if (habs.length === 0) {
@@ -2419,22 +1654,15 @@ function filasOcupadasPiso(pisoId) {
   return Math.max(0, ...habs.map((h) => (h.cy || 1) + (h.rs || 1) - 1));
 }
 
-// Genera celdas guía (.celda-guia) para todo el área del grid de #plano,
-// alineadas exactamente con las mismas pistas 1fr / gap / padding que .sala.
-// expandir: cuando el usuario arrastra o redimensiona, muestra 1 fila extra libre al final.
 function renderizarGuiaGrid(expandir = false) {
   const plano = $('plano');
-  // Si el constructor está oculto no hay medidas fiables:
-  // se recalcula automáticamente al entrar al modo avanzado.
   if (!plano || !plano.clientWidth) {
     return;
   }
   const m = medidasGrid();
   const ocupadas = filasOcupadasPiso(Estado.pisoActivo);
   const filas = Math.min(MAX_FILAS, Math.max(FILAS_MIN, ocupadas + (expandir ? 1 : 0)));
-  // Remover solo las celdas guía existentes, sin tocar las .sala
   plano.querySelectorAll('.celda-guia').forEach((g) => g.remove());
-  // Insertar las nuevas celdas guía al inicio, antes de las habitaciones
   const fragmento = document.createDocumentFragment();
   for (let cy = 1; cy <= filas; cy++) {
     for (let cx = 1; cx <= m.cols; cx++) {
@@ -2448,10 +1676,7 @@ function renderizarGuiaGrid(expandir = false) {
   plano.prepend(fragmento);
 }
 
-// Tamaño lógico (cs x rs celdas) y posición (cx, cy) -> variables CSS que consumen grid-column / grid-row
 function aplicarSpans(sala, hab) {
-  // Sin layout visible se escriben las variables tal cual y se
-  // recalcula al mostrar el constructor.
   if (!$('plano') || !$('plano').clientWidth) {
     sala.style.setProperty('--cs', hab.cs || 1);
     sala.style.setProperty('--rs', hab.rs || 1);
@@ -2460,12 +1685,12 @@ function aplicarSpans(sala, hab) {
     return;
   }
   const m = medidasGrid();
-  const cs = Math.min(hab.cs, m.cols); // nunca más columnas de las que caben
+  const cs = Math.min(hab.cs, m.cols);
   const filasLimite = Math.min(
     MAX_FILAS,
     Math.max(FILAS_MIN, filasOcupadasPiso(Estado.pisoActivo) + 1)
   );
-  const cx = Math.max(1, Math.min(hab.cx || 1, m.cols - cs + 1)); // no desbordar columnas
+  const cx = Math.max(1, Math.min(hab.cx || 1, m.cols - cs + 1));
   const cy = Math.max(1, Math.min(hab.cy || 1, filasLimite - hab.rs + 1));
   sala.style.setProperty('--cs', cs);
   sala.style.setProperty('--rs', hab.rs);
@@ -2473,48 +1698,6 @@ function aplicarSpans(sala, hab) {
   sala.style.setProperty('--cy', cy);
 }
 
-// Asa de la esquina: convierte píxeles arrastrados en nº de celdas ("pega" a la cuadrícula)
-function activarRedimension(sala, id) {
-  const asa = sala.querySelector('.sala__asa');
-  asa.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    asa.setPointerCapture(e.pointerId);
-    sala.classList.add('redimensionando');
-    renderizarGuiaGrid(true); // mostrar 1 fila extra libre al redimensionar
-    const hab = Estado.habitaciones.get(id);
-    const mover = (ev) => {
-      const m = medidasGrid(),
-        caja = sala.getBoundingClientRect();
-      hab.cs = limitar(
-        Math.round((ev.clientX - caja.left + m.hueco) / (m.ancho + m.hueco)),
-        1,
-        m.cols
-      );
-      const filasLimite = Math.min(
-        MAX_FILAS,
-        Math.max(FILAS_MIN, filasOcupadasPiso(Estado.pisoActivo) + 1)
-      );
-      hab.rs = limitar(
-        Math.round((ev.clientY - caja.top + m.hueco) / (m.alto + m.hueco)),
-        1,
-        filasLimite
-      );
-      aplicarSpans(sala, hab);
-    };
-    const soltar = () => {
-      sala.classList.remove('redimensionando');
-      renderizarGuiaGrid(false); // encojer si la fila extra quedó vacía
-      ['pointermove', 'pointerup', 'pointercancel'].forEach((t, i) =>
-        asa.removeEventListener(t, [mover, soltar, soltar][i])
-      );
-    };
-    asa.addEventListener('pointermove', mover);
-    asa.addEventListener('pointerup', soltar);
-    asa.addEventListener('pointercancel', soltar);
-  });
-}
-
-// Si la ventana se estrecha y caben menos columnas, reajusta sin perder el tamaño lógico guardado
 let colsPrevios = 0;
 new ResizeObserver(() => {
   const m = medidasGrid();
@@ -2527,134 +1710,7 @@ new ResizeObserver(() => {
   }
 }).observe($('plano'));
 
-/* ---------- Drag & Drop ---------- */
-let arrastre = null; // dragover no puede leer getData(): recordamos aquí el arrastre en curso
-let fantasma = null; // elemento de previsualización al arrastrar una habitación
-
-function empezarArrastre(e, datos) {
-  arrastre = datos;
-  e.dataTransfer.setData('text/plain', JSON.stringify(datos));
-  e.dataTransfer.effectAllowed = datos.id || datos.salaOrigen ? 'move' : 'copy';
-}
-
-// Calcula la celda (cx, cy, base 1) bajo el cursor dentro de #plano
-function celdaDesdePunto(x, y) {
-  const plano = $('plano');
-  const estilo = getComputedStyle(plano);
-  const rect = plano.getBoundingClientRect();
-  const m = medidasGrid();
-  const padX = parseFloat(estilo.paddingLeft) || 0;
-  const padY = parseFloat(estilo.paddingTop) || 0;
-  const relX = Math.max(0, x - rect.left - plano.clientLeft - padX);
-  const relY = Math.max(0, y - rect.top - plano.clientTop - padY);
-  const cx = limitar(Math.floor(relX / (m.ancho + m.hueco)) + 1, 1, m.cols);
-  const filasLimite = Math.min(
-    MAX_FILAS,
-    Math.max(FILAS_MIN, filasOcupadasPiso(Estado.pisoActivo) + 1)
-  );
-  const cy = limitar(Math.floor(relY / (m.alto + m.hueco)) + 1, 1, filasLimite);
-  return { cx, cy };
-}
-
-// Muestra / oculta el fantasma de previsualización en la celda destino usando CSS Grid (misma pista que .sala)
-function mostrarFantasma(cx, cy, cs, rs, ocupado) {
-  const plano = $('plano');
-  const m = medidasGrid();
-  const csAjustado = Math.min(cs, m.cols - cx + 1); // no salirse del grid
-  if (!fantasma) {
-    fantasma = document.createElement('div');
-    fantasma.className = 'sala-fantasma';
-    plano.appendChild(fantasma);
-  }
-  fantasma.className = 'sala-fantasma' + (ocupado ? ' ocupada' : '');
-  fantasma.style.setProperty('--cx', cx);
-  fantasma.style.setProperty('--cy', cy);
-  fantasma.style.setProperty('--cs', csAjustado);
-  fantasma.style.setProperty('--rs', rs);
-  fantasma.style.display = 'block';
-}
-
-function removerFantasma() {
-  if (fantasma) {
-    fantasma.remove();
-    fantasma = null;
-  }
-}
-
-// Intenta colocar la habitación arrastrada en (cx, cy). Si colisiona con otra, intercambia coordenadas si caben
-// o reubica la colisionada en el primer hueco libre. Nunca deja dos habitaciones encimadas.
-function colocarHabitacionEnCelda(salaId, cx, cy) {
-  const hab = Estado.habitaciones.get(salaId);
-  if (!hab) {
-    renderizarGuiaGrid(false);
-    return false;
-  }
-  const piso = hab.piso;
-  const { cs, rs } = hab;
-
-  if (!celdasOcupadas(piso, cx, cy, cs, rs, salaId)) {
-    hab.cx = cx;
-    hab.cy = cy;
-    aplicarSpans(salaEl(salaId), hab);
-    notificar();
-    renderizarGuiaGrid(false);
-    return true;
-  }
-
-  // Colisión: buscar otra habitación que ocupe esa celda e intentar intercambiar posiciones
-  for (const [id, h] of Estado.habitaciones) {
-    if (id === salaId || h.piso !== piso) {
-      continue;
-    }
-    if (cx < h.cx + h.cs && cx + cs > h.cx && cy < h.cy + h.rs && cy + rs > h.cy) {
-      // Intento 1: intercambiar coordenadas si la otra caben en la posición actual de salaId
-      if (
-        !celdasOcupadas(piso, hab.cx, hab.cy, h.cs, h.rs, id) &&
-        celdasOcupadas(piso, hab.cx, hab.cy, h.cs, h.rs, salaId) === false
-      ) {
-        const cxViejo = h.cx;
-        const cyViejo = h.cy;
-        h.cx = hab.cx;
-        h.cy = hab.cy;
-        aplicarSpans(salaEl(id), h);
-        hab.cx = cxViejo;
-        hab.cy = cyViejo;
-        aplicarSpans(salaEl(salaId), hab);
-        notificar();
-        renderizarGuiaGrid(false);
-        return true;
-      }
-      // Intento 2: reubicar la colisionada en primer hueco libre y poner salaId en (cx, cy)
-      const libre = primerHuecoLibre(piso, h.cs, h.rs);
-      if (libre) {
-        h.cx = libre.cx;
-        h.cy = libre.cy;
-        aplicarSpans(salaEl(id), h);
-        hab.cx = cx;
-        hab.cy = cy;
-        aplicarSpans(salaEl(salaId), hab);
-        notificar();
-        renderizarGuiaGrid(false);
-        return true;
-      }
-      break;
-    }
-  }
-
-  // Si todo falla, intentar primer hueco libre para salaId
-  const libre = primerHuecoLibre(piso, cs, rs);
-  if (libre) {
-    hab.cx = libre.cx;
-    hab.cy = libre.cy;
-    aplicarSpans(salaEl(salaId), hab);
-    notificar();
-    renderizarGuiaGrid(false);
-    return true;
-  }
-  renderizarGuiaGrid(false);
-  return false; // no hay sitio: se queda donde está
-}
-
+// Catálogo informativo (paleta) y modal de información
 const GRUPOS_PALETA = [
   { titulo: 'Baño', tipos: ['ducha', 'inodoro', 'lavabo', 'tina'] },
   { titulo: 'Cocina y lavandería', tipos: ['lavadora', 'lavavajillas', 'filtro'] },
@@ -2684,11 +1740,7 @@ function construirPaleta() {
 
       const el = document.createElement('div');
       el.className = 'item';
-      el.draggable = true;
-      el.tabIndex = 0;
       el.dataset.tipo = tipo;
-      // La medida no cabe en el chip; queda en el tooltip y en el texto oculto.
-      el.title = c.nombre + ' · ' + c.flujo + ' ' + c.medida + (c.fijo ? ' · fijo' : '');
       el.innerHTML =
         '<span class="ico">' +
         c.icono +
@@ -2699,19 +1751,12 @@ function construirPaleta() {
         ' ' +
         c.medida +
         (c.fijo ? ' · fijo' : '') +
-        '</small></div>';
-      el.addEventListener('dragstart', (e) => {
-        cerrarEditor();
-        empezarArrastre(e, { tipo });
-      });
-      el.addEventListener('dragend', () => (arrastre = null));
-      el.addEventListener('click', () => seleccionarItem(seleccion === tipo ? null : tipo)); // flujo táctil
-      el.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          seleccionarItem(seleccion === tipo ? null : tipo);
-        }
-      });
+        '</small></div>' +
+        '<button type="button" class="item__info" data-tipo="' +
+        tipo +
+        '" aria-label="Información sobre ' +
+        c.nombre +
+        '" aria-haspopup="dialog">?</button>';
       items.appendChild(el);
     });
 
@@ -2720,147 +1765,55 @@ function construirPaleta() {
   });
 }
 
-// Tap-to-place: 1) tocar un ítem de la paleta lo selecciona; 2) tocar una sala lo coloca al centro
-let seleccion = null;
-function seleccionarItem(tipo) {
-  seleccion = tipo;
-  document
-    .querySelectorAll('.item')
-    .forEach((i) => i.classList.toggle('seleccionado', i.dataset.tipo === tipo));
-  document.body.classList.toggle('colocando', !!tipo);
-}
-function colocarSeleccion(e, sala) {
-  if (!seleccion || e.target.closest('.clon, .sala__x, .sala__asa, .sala__rotulo, .sala__mover')) {
+let infoOrigen = null;
+
+function abrirInfoDispositivo(tipo) {
+  const c = CATALOGO[tipo];
+  const modal = $('modal-info');
+  if (!c || !modal) {
     return;
   }
-  // El dispositivo se coloca y se muestra en el plano; la ficha se abre solo al tocarlo.
-  cerrarEditor();
-  e.stopPropagation();
-  agregarDispositivo(seleccion, sala, 0.5, 0.5); // 0.5/0.5 = centro de la habitación
-  seleccionarItem(null);
+  infoOrigen = document.activeElement;
+
+  $('modal-info-titulo').textContent = c.icono + ' ' + c.nombre;
+  $('modal-info-flujo').textContent =
+    'Flujo base: ' + c.flujo + ' ' + c.medida + (c.fijo ? ' · gasto fijo' : '') + '.';
+  $('modal-info-msg').textContent = c.descripcion || '';
+
+  modal.hidden = false;
+  $('modal-info-cerrar').focus();
 }
 
-function activarSala(sala) {
-  // una llamada por sala, incluidas las creadas en caliente
-  sala.addEventListener('dragenter', (e) => {
-    if (!arrastre) {
-      return;
-    }
-    if (arrastre.salaOrigen) {
-      if (arrastre.salaOrigen !== sala.dataset.sala) {
-        e.preventDefault();
-        sala.classList.add('destino-sala');
-      }
-      return;
-    }
-    e.preventDefault();
-    sala.classList.add('sobre');
-  });
-  sala.addEventListener('dragover', (e) => {
-    if (!arrastre) {
-      return;
-    }
-    if (arrastre.salaOrigen) {
-      if (arrastre.salaOrigen !== sala.dataset.sala) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-      }
-      return;
-    }
-    e.preventDefault();
-    e.dataTransfer.dropEffect = arrastre.id ? 'move' : 'copy';
-  });
-  sala.addEventListener('dragleave', (e) => {
-    if (!sala.contains(e.relatedTarget)) {
-      sala.classList.remove('sobre', 'destino-sala');
-    }
-  });
-  sala.addEventListener('drop', alSoltar);
-  sala.addEventListener('click', (e) => colocarSeleccion(e, sala));
+function cerrarInfoDispositivo() {
+  const modal = $('modal-info');
+  if (modal) {
+    modal.hidden = true;
+  }
+  if (infoOrigen && infoOrigen.focus) {
+    infoOrigen.focus({ preventScroll: true });
+  }
+  infoOrigen = null;
 }
 
-function coordenadasEnSala(e, sala) {
-  const caja = sala.getBoundingClientRect();
-  const x = e.clientX - caja.left - sala.clientLeft - CONFIG.tamClon / 2;
-  const y = e.clientY - caja.top - sala.clientTop - CONFIG.tamClon / 2;
-  const libre = (n, total) => limitar(n / Math.max(total - CONFIG.tamClon, 1), 0, 1); // fracción del espacio libre
-  return { x: libre(x, sala.clientWidth), y: libre(y, sala.clientHeight) };
-}
-
-function alSoltar(e) {
-  e.preventDefault();
-  const sala = e.currentTarget;
-  sala.classList.remove('sobre', 'destino-sala');
-  if (!arrastre) {
-    return;
+$('paleta').addEventListener('click', (e) => {
+  const btn = e.target.closest('.item__info');
+  if (btn) {
+    abrirInfoDispositivo(btn.dataset.tipo);
   }
-
-  const datos = JSON.parse(e.dataTransfer.getData('text/plain'));
-  if (datos.salaOrigen) {
-    // No reordenar por DOM: dejar que el evento llegue al drop de #plano para reposicionar por cx/cy
-    sala.classList.remove('sobre', 'destino-sala');
-    return;
+});
+$('modal-info-cerrar').addEventListener('click', cerrarInfoDispositivo);
+$('modal-info').addEventListener('click', (e) => {
+  if (e.target === $('modal-info')) {
+    cerrarInfoDispositivo();
   }
-
-  const { x, y } = coordenadasEnSala(e, sala);
-  cerrarEditor();
-
-  if (datos.id) {
-    moverDispositivo(datos.id, sala, x, y);
-  } else {
-    agregarDispositivo(datos.tipo, sala, x, y);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('modal-info').hidden) {
+    cerrarInfoDispositivo();
   }
-}
-
-/* ---------- Arrastre libre de habitaciones sobre #plano (celdas vacías) ---------- */
-$('plano').addEventListener('dragenter', (e) => {
-  if (!arrastre || !arrastre.salaOrigen) {
-    return;
-  }
-  e.preventDefault();
 });
 
-$('plano').addEventListener('dragover', (e) => {
-  if (!arrastre || !arrastre.salaOrigen) {
-    return;
-  }
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  const hab = Estado.habitaciones.get(arrastre.salaOrigen);
-  if (!hab) {
-    return;
-  }
-  const { cx, cy } = celdaDesdePunto(e.clientX, e.clientY);
-  const ocupado = celdasOcupadas(Estado.pisoActivo, cx, cy, hab.cs, hab.rs, arrastre.salaOrigen);
-  mostrarFantasma(cx, cy, hab.cs, hab.rs, ocupado);
-});
-
-$('plano').addEventListener('dragleave', (e) => {
-  // Solo ocultar el fantasma si el cursor sale del plano y no entra a una sala hija
-  if (!arrastre || !arrastre.salaOrigen) {
-    return;
-  }
-  if (e.relatedTarget && $('plano').contains(e.relatedTarget)) {
-    return;
-  }
-  removerFantasma();
-});
-
-$('plano').addEventListener('drop', (e) => {
-  if (!arrastre || !arrastre.salaOrigen) {
-    return;
-  }
-  e.preventDefault();
-  removerFantasma();
-  const { cx, cy } = celdaDesdePunto(e.clientX, e.clientY);
-  colocarHabitacionEnCelda(arrastre.salaOrigen, cx, cy);
-  arrastre = null;
-  document.body.classList.remove('arrastrando-disp');
-});
-
-/* ---------- Clones ---------- */
-// Se guarda la fracción del ESPACIO LIBRE (sala menos ícono) y CSS la resuelve con calc():
-// al estirar o encoger la sala con resize, el clon se reubica solo y nunca se sale de la caja.
+// Clones de dispositivos en el plano y editor de modo
 function posicionar(el, fx, fy) {
   el.style.left = 'calc((100% - ' + CONFIG.tamClon + 'px) * ' + fx.toFixed(4) + ')';
   el.style.top = 'calc((100% - ' + CONFIG.tamClon + 'px) * ' + fy.toFixed(4) + ')';
@@ -2878,14 +1831,13 @@ function refrescarClon(el) {
     ': ' +
     litros +
     ' L/día' +
-    (c.fijo ? ' (gasto fijo)' : ' · clic para ver detalle · doble clic para quitar');
+    (c.fijo ? ' (gasto fijo)' : ' · clic para ver el detalle y cambiar el modo');
 }
 
 function crearClon(id, tipo) {
   const el = document.createElement('div');
   el.className = 'clon';
   el.id = id;
-  el.draggable = true;
   el.tabIndex = 0;
   if (CATALOGO[tipo].fijo) {
     el.dataset.fijo = '1';
@@ -2894,32 +1846,7 @@ function crearClon(id, tipo) {
   el.insertAdjacentHTML('beforeend', '<small></small>');
   refrescarClon(el);
 
-  el.addEventListener('dragstart', (e) => {
-    cerrarEditor();
-    empezarArrastre(e, { tipo, id });
-    setTimeout(() => {
-      if (!arrastre || arrastre.id !== id) {
-        return;
-      } // el arrastre ya terminó
-      el.classList.add('arrastrando');
-      document.body.classList.add('arrastrando-disp'); // muestra la papelera
-    });
-  });
-  el.addEventListener('dragend', () => {
-    arrastre = null;
-    el.classList.remove('arrastrando');
-    document.body.classList.remove('arrastrando-disp');
-  });
   el.addEventListener('click', () => abrirEditor(id));
-  el.addEventListener('dblclick', async () => {
-    const confirmado = await modalConfirm(
-      '¿Eliminar este dispositivo? Dejará de contar en el consumo.',
-      'Eliminar dispositivo'
-    );
-    if (confirmado) {
-      eliminarDispositivo(id);
-    }
-  });
   el.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -2946,11 +1873,10 @@ function agregarDispositivo(tipo, sala, fx, fy, opciones = {}) {
     ...(opciones.origen ? { origen: opciones.origen } : {}),
   });
   montarDispositivo(id);
-  recalcularUsosPorNivel(); // el aparato nuevo entra al reparto de su clase
+  recalcularUsosPorNivel();
   return id;
 }
 
-// Dibuja el clon desde su registro (al soltar, con tap-to-place y al restaurar)
 function montarDispositivo(id) {
   const d = Estado.dispositivos.get(id),
     sala = salaEl(d.sala);
@@ -2965,72 +1891,6 @@ function montarDispositivo(id) {
   posicionar(el, d.fx, d.fy);
 }
 
-function moverDispositivo(id, sala, fx, fy) {
-  const d = Estado.dispositivos.get(id);
-  if (!d) {
-    return;
-  }
-  d.sala = sala.dataset.sala;
-  // Mover puede cambiar la clase de uso (un lavabo de la cocina a un baño), así
-  // que se reparte de nuevo la clase de origen y la de destino. Calcular solo
-  // este aparato le devolvería el total de la clase y lo dejaría como si fuese
-  // el único, deshaciendo el reparto del cuarto al que llega.
-  recalcularUsosPorNivel();
-  d.fx = fx;
-  d.fy = fy; // el Proxy detecta el cambio: repinta y guarda
-  const el = $(id);
-  sala.appendChild(el);
-  posicionar(el, fx, fy);
-  refrescarClon(el);
-}
-
-function eliminarDispositivo(id) {
-  if (editandoId === id) {
-    cerrarEditor();
-  }
-  const el = $(id);
-  if (el) {
-    el.remove();
-  }
-  Estado.dispositivos.delete(id); // el Proxy repinta y guarda solo
-  recalcularUsosPorNivel(); // el resto de la clase se reparte la demanda que deja
-}
-
-/* ---------- Papelera: arrastrar un dispositivo ya colocado aquí lo elimina ---------- */
-const papelera = $('papelera');
-const idArrastrado = () => (arrastre && arrastre.id) || null; // los del catálogo no tienen id
-
-papelera.addEventListener('dragenter', (e) => {
-  if (!idArrastrado()) {
-    return;
-  }
-  e.preventDefault();
-  papelera.classList.add('sobre');
-});
-papelera.addEventListener('dragover', (e) => {
-  if (!idArrastrado()) {
-    return;
-  }
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-});
-papelera.addEventListener('dragleave', (e) => {
-  if (!papelera.contains(e.relatedTarget)) {
-    papelera.classList.remove('sobre');
-  }
-});
-papelera.addEventListener('drop', (e) => {
-  e.preventDefault();
-  const id = idArrastrado();
-  arrastre = null;
-  papelera.classList.remove('sobre');
-  document.body.classList.remove('arrastrando-disp');
-  if (id) {
-    eliminarDispositivo(id);
-  }
-});
-
-/* ---------- Ficha flotante (consumo estimado + eficiencia editable) ---------- */
 let editandoId = null;
 
 function abrirEditor(id) {
@@ -3128,61 +1988,30 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     const id = editandoId;
     cerrarEditor();
-    seleccionarItem(null);
     if (id && $(id)) {
       $(id).focus({ preventScroll: true });
     }
   }
 });
 
-/* ---------- Simulación en tiempo real ----------
-   El tinaco de la simulación se vacía con el consumo de los dispositivos del plano y se
-   llena con el agua que entra de la red (SIMAS). Vive FUERA de Estado a propósito: cambia
-   ~60 veces por segundo y, dentro del Proxy, cada cambio repintaría el dashboard y
-   escribiría en localStorage. */
-const LIMITE_BOMBA = 0.2, // la bomba automática arranca al 20 % del tanque
+// Simulación del tanque, suministro y sensores en tiempo real
+const LIMITE_BOMBA = 0.2,
   SEG_DIA = 86400;
 
-// Caudales de entrada de la red en L/min. El suministro normal llega con presión baja
-// casi todo el día; el tandeo solo entrega agua en sus franjas horarias.
 const ENTRADA_RED_NORMAL_LMIN = 0.3;
 const ENTRADA_RED_TANDEO_LMIN = 6;
-// La bomba toma agua de la red y llena el tinaco a este caudal.
 const CAUDAL_BOMBA_LMIN = 15;
 
-// Pesos horarios w(0..23) cuya suma exacta es 24.00: garantiza que la integral de 24 h sea igual a litrosTotales()
+// Pesos horarios w(0..23) cuya suma exacta es 24.00
 const PESOS_HORA = [
-  0.08,
-  0.08,
-  0.08,
-  0.08,
-  0.08, // 00:00–05:00 Madrugada (suma = 0.40)
-  0.6, // 05:00–06:00 Inicio matutino (suma = 0.60)
-  2.6,
-  2.6,
-  2.6, // 06:00–09:00 Hora pico matutina (suma = 7.80)
-  0.7,
-  0.7,
-  0.7,
-  0.7, // 09:00–13:00 Media mañana (suma = 2.80)
-  2.1,
-  2.1, // 13:00–15:00 Hora pico mediodía (suma = 4.20)
-  0.65,
-  0.65,
-  0.65,
-  0.65, // 15:00–19:00 Tarde normal (suma = 2.60)
-  1.7,
-  1.7,
-  1.7, // 19:00–22:00 Hora pico nocturna (suma = 5.10)
-  0.25,
-  0.25, // 22:00–24:00 Noche baja (suma = 0.50)
-]; // Suma exacta = 24.00
+  0.08, 0.08, 0.08, 0.08, 0.08, 0.6, 2.6, 2.6, 2.6, 0.7, 0.7, 0.7, 0.7, 2.1, 2.1, 0.65, 0.65, 0.65,
+  0.65, 1.7, 1.7, 1.7, 0.25, 0.25,
+];
 
 function enTanda(h) {
   return (h >= 6 && h < 10) || (h >= 18 && h < 22);
 }
 
-// ¿La red tiene suministro en la hora simulada? El corte nunca entrega agua.
 function redDisponible(h = horaActualSim()) {
   if (Sim.modoSuministro === 'normal') {
     return true;
@@ -3193,7 +2022,6 @@ function redDisponible(h = horaActualSim()) {
   return false;
 }
 
-// Entrada directa de la red en L/s (sin contar la bomba).
 function entradaRedLps(h = horaActualSim()) {
   if (Sim.modoSuministro === 'normal') {
     return ENTRADA_RED_NORMAL_LMIN / 60;
@@ -3206,7 +2034,7 @@ function entradaRedLps(h = horaActualSim()) {
 
 const Sim = {
   corriendo: Estado.simCorriendo,
-  velocidad: Estado.simVelocidad, // segundos simulados por segundo real
+  velocidad: Estado.simVelocidad,
   modoSuministro: Estado.simModoSuministro || 'normal',
   seguirSinAgua: Boolean(Estado.simSeguirSinAgua),
   bombaActiva: Estado.simBombaActiva !== false,
@@ -3214,10 +2042,14 @@ const Sim = {
   consumoAcumulado: Math.max(0, Number(Estado.simConsumoAcumulado) || 0),
   casoFuga: 4821,
   fugasActivas: [],
+  horaInicioFuga: new Map(),
   fugasActivo: true,
   fugasReveladas: false,
   sensoresAvisados: false,
   aguaPerdida: 0,
+  bitacora: [],
+  bitacoraSucia: false,
+  logPrev: { red: null, bomba: null, vacio: null, pico: null },
   nivel: Estado.simNivel !== null ? Estado.simNivel : null,
   tiempo: Estado.simTiempo,
   ultimo: 0,
@@ -3227,7 +2059,6 @@ const Sim = {
   ultimoSensores: 0,
 };
 
-// Cambia el estado del motor sin disparar un render extra del dashboard.
 function cambiarBomba(encendida) {
   const valor = Boolean(encendida);
   if (Sim.bombaEncendida === valor) {
@@ -3237,27 +2068,15 @@ function cambiarBomba(encendida) {
   return true;
 }
 
-// Aplica las reglas de la bomba: apagada, sin suministro, tinaco lleno y arranque al 20 %.
 function actualizarBomba(h = horaActualSim()) {
   if (Sim.nivel === null) {
     return;
   }
-  if (!Sim.bombaActiva) {
+  if (!Sim.bombaActiva || !redDisponible(h) || Sim.nivel >= Estado.capacidad) {
     cambiarBomba(false);
     return;
   }
-  if (!redDisponible(h)) {
-    cambiarBomba(false);
-    return;
-  }
-  if (Sim.nivel >= Estado.capacidad) {
-    cambiarBomba(false);
-    return;
-  }
-  if (Sim.bombaEncendida) {
-    return;
-  }
-  if (Sim.nivel <= Estado.capacidad * LIMITE_BOMBA) {
+  if (!Sim.bombaEncendida && Sim.nivel <= Estado.capacidad * LIMITE_BOMBA) {
     cambiarBomba(true);
   }
 }
@@ -3277,7 +2096,7 @@ const MENSAJES_SIM = {
   sinconsumo: {
     nivel: '',
     titulo: 'Sin consumo',
-    texto: 'Agrega dispositivos al plano para ver cómo cambia el nivel del tanque.',
+    texto: 'Sin consumo en la vivienda: el nivel del tanque no cambia con el uso.',
   },
 };
 
@@ -3289,19 +2108,22 @@ function renderModosSuministro() {
   });
 }
 
-// El brillo del plano es la recompensa del detective: no aparece al iniciar la
-// corrida, solo cuando la anomalía se descubre en los sensores o al finalizar.
 function marcarFugasReveladas() {
-  if (Sim.fugasReveladas) {
+  let cambio = false;
+  fugasIniciadas().forEach((id) => {
+    const el = $(id);
+    if (el && !el.classList.contains('clon--fuga')) {
+      el.classList.add('clon--fuga');
+      cambio = true;
+      const d = Estado.dispositivos.get(id);
+      const hab = d ? Estado.habitaciones.get(d.sala) : null;
+      registrarEvento('Anomalía detectada en ' + (hab ? hab.nombre : 'un aparato'), 'alerta');
+    }
+  });
+  if (!cambio) {
     return;
   }
   Sim.fugasReveladas = true;
-  Sim.fugasActivas.forEach((id) => {
-    const el = $(id);
-    if (el) {
-      el.classList.add('clon--fuga');
-    }
-  });
   renderDashboard();
 }
 
@@ -3314,8 +2136,6 @@ function limpiarFugasReveladas() {
   }
 }
 
-// Cada corrida sortea un código nuevo. La traducción del código a fugas sigue
-// siendo determinista, pero el número ya no se muestra ni se edita.
 function casoFugaAleatorio() {
   let codigo = Sim.casoFuga;
   while (codigo === Sim.casoFuga) {
@@ -3324,11 +2144,11 @@ function casoFugaAleatorio() {
   return codigo;
 }
 
-// Recalcula las fugas del caso y las deja listas para la corrida.
 function aplicarCasoFuga(codigo) {
   const caso = generarCasoFuga(codigo);
   Sim.casoFuga = caso.codigo;
   Sim.fugasActivas = caso.ids;
+  Sim.horaInicioFuga = caso.horas;
   Sim.sensoresAvisados = false;
   limpiarFugasReveladas();
   Estado.simCasoFuga = caso.codigo;
@@ -3380,7 +2200,6 @@ function renderBomba() {
   }
   interruptor.checked = Boolean(Sim.bombaActiva);
 
-  // Con la bomba activa el arranque es implícito: el botón del tanque vacío sobra.
   const btnVacio = $('sim-encender-bomba');
   if (btnVacio) {
     btnVacio.hidden = Sim.bombaActiva;
@@ -3435,7 +2254,6 @@ function etiquetaFranja(h) {
   return 'Horario normal';
 }
 
-// Segundos simulados -> "2 d 5 h", "3 h 20 min", "12 min"
 function formatoDuracion(s) {
   if (!isFinite(s)) {
     return '—';
@@ -3459,15 +2277,113 @@ function formatoReloj(s) {
   return 'Día ' + dia + ' · ' + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
 }
 
-// Flujos en litros por segundo simulado. Las fugas ocurren parejo 24 h y el gasto
-// humano se modula según PESOS_HORA[h]. El modo de suministro determina la entrada de red.
+function registrarEvento(texto, tono) {
+  Sim.bitacora.push({ hora: formatoReloj(Sim.tiempo), texto, tono });
+  if (Sim.bitacora.length > 30) {
+    Sim.bitacora.shift();
+  }
+  Sim.bitacoraSucia = true;
+}
+
+function detectarEventos() {
+  const red = redDisponible();
+  const bomba = Sim.bombaEncendida;
+  const vacio = Sim.nivel !== null && Sim.nivel <= 0;
+  const pico = esHoraPico(horaActualSim());
+  const prev = Sim.logPrev;
+
+  if (prev.red !== null && red !== prev.red) {
+    registrarEvento(
+      red ? 'Llega agua de la red' : 'Se corta el suministro',
+      red ? 'agua' : 'alerta'
+    );
+  }
+  if (prev.bomba !== null && bomba !== prev.bomba) {
+    registrarEvento(
+      bomba ? 'Arranca la bomba del tinaco' : 'Se detiene la bomba',
+      bomba ? 'bomba' : ''
+    );
+  }
+  if (prev.vacio !== null && vacio !== prev.vacio) {
+    registrarEvento(
+      vacio ? 'El tinaco se vacía' : 'El tinaco vuelve a tener agua',
+      vacio ? 'alerta' : 'agua'
+    );
+  }
+  if (prev.pico !== null && pico !== prev.pico) {
+    registrarEvento(pico ? 'Empieza una hora pico' : 'Termina la hora pico', pico ? 'pico' : '');
+  }
+
+  prev.red = red;
+  prev.bomba = bomba;
+  prev.vacio = vacio;
+  prev.pico = pico;
+}
+
+function renderBitacora() {
+  const lista = $('bitacora-lista');
+  const vacio = $('bitacora-vacio');
+  if (!lista || !Sim.bitacoraSucia) {
+    return;
+  }
+  Sim.bitacoraSucia = false;
+  lista.innerHTML = '';
+  Sim.bitacora
+    .slice()
+    .reverse()
+    .forEach((ev) => {
+      const item = document.createElement('li');
+      item.className = 'bitacora__item' + (ev.tono ? ' bitacora__item--' + ev.tono : '');
+      const hora = document.createElement('time');
+      hora.textContent = ev.hora;
+      const texto = document.createElement('span');
+      texto.textContent = ev.texto;
+      item.append(hora, texto);
+      lista.appendChild(item);
+    });
+  if (vacio) {
+    vacio.hidden = Sim.bitacora.length > 0;
+  }
+}
+
+function renderEntradaSuministro() {
+  const activo = document.querySelector('.modo-suministro.activo');
+  const entrando = Boolean(activo) && Sim.corriendo && redDisponible();
+  document.querySelectorAll('.modo-suministro').forEach((btn) => {
+    btn.classList.toggle('modo-suministro--flujo', btn === activo && entrando);
+  });
+  const titulo = $('sim-suministro-titulo');
+  if (titulo) {
+    titulo.textContent = entrando ? 'Suministro · entrando' : 'Suministro';
+  }
+}
+
+function dispositivoPicoDeSala(salaId, factor) {
+  let mejor = null;
+  let max = 0;
+  Estado.dispositivos.forEach((d) => {
+    if (d.sala !== salaId) {
+      return;
+    }
+    const c = CATALOGO[d.tipo];
+    if (!c) {
+      return;
+    }
+    const actual = c.fijo ? c.flujo : litrosDe(d) * factor;
+    if (actual > max) {
+      max = actual;
+      mejor = c.nombre;
+    }
+  });
+  return max > 0 ? mejor : null;
+}
+
 function simFlujos() {
   const totalDia = litrosTotales(),
     fugasDia = resumenFugas().litros,
-    fugasSim = fugasSimPorSala().total,
+    fugasSim = fugasSimPorSala(true).total,
     humanoDia = Math.max(0, totalDia - fugasDia),
     h = horaActualSim();
-  // La fuga sorpresa se suma aparte: el plano sigue midiendo la casa real.
   const demanda = (fugasDia + fugasSim + humanoDia * PESOS_HORA[h]) / SEG_DIA;
 
   const red = entradaRedLps(h);
@@ -3494,16 +2410,14 @@ function simFlujos() {
   return { demanda, consumo, consumoFuga, entrada, neto, totalDia, red, bomba };
 }
 
-// Detecta si una hora del día (0-23) está dentro de las franjas de pico.
 function esHoraPico(h) {
   return (h >= 6 && h < 9) || (h >= 13 && h < 15) || (h >= 19 && h < 22);
 }
 
-// Flujo real por habitación en L/min. La suma de las filas coincide con simFlujos().consumo * 60.
 function flujosPorHabitacion(hora, resumen = resumenPorSala()) {
   const factor = PESOS_HORA[hora] || 0;
   const hayAgua = Sim.nivel === null || Sim.nivel > 0;
-  const extras = fugasSimPorSala();
+  const extras = fugasSimPorSala(true);
   const filas = [];
   Estado.habitaciones.forEach((hab, id) => {
     const fugaSim = extras.porSala[id] || 0;
@@ -3517,6 +2431,7 @@ function flujosPorHabitacion(hora, resumen = resumenPorSala()) {
       humano,
       flujo: hayAgua ? (fijo + humano * factor) / 1440 : 0,
       tieneFuga: Boolean(resumen.fugaEnSala[id]) || fugaSim > 0,
+      picoNombre: factor > 0 ? dispositivoPicoDeSala(id, factor) : null,
     });
   });
   return filas;
@@ -3536,7 +2451,7 @@ function renderSensores() {
   if (!filas.length) {
     const vacio = document.createElement('p');
     vacio.className = 'sensores__vacio';
-    vacio.textContent = 'Agrega habitaciones para ver los sensores.';
+    vacio.textContent = 'El plano no tiene habitaciones con sensores.';
     cont.appendChild(vacio);
     resumenEl.textContent = '';
     return;
@@ -3551,7 +2466,6 @@ function renderSensores() {
     let etiqueta;
     if (Sim.nivel !== null && Sim.nivel <= 0) {
       estado = 'sin-suministro';
-      // La etiqueta se repite en cada fila: se queda en lo mínimo legible.
       etiqueta = fila.tieneFuga ? 'Fuga · sin suministro' : 'Sin suministro';
     } else if (fila.tieneFuga) {
       estado = 'anomalo';
@@ -3559,7 +2473,7 @@ function renderSensores() {
       alertas++;
     } else if (fila.flujo > 0 && esHoraPico(h)) {
       estado = 'pico';
-      etiqueta = 'Pico';
+      etiqueta = fila.picoNombre ? 'Pico · ' + fila.picoNombre : 'Pico';
     } else if (fila.flujo > 0) {
       estado = 'normal';
       etiqueta = 'Normal';
@@ -3593,17 +2507,17 @@ function renderSensores() {
     ' · ' +
     total.toFixed(2) +
     ' L/min' +
-    // Antes de correr, el contador de alertas delataría la fuga sorpresa.
     (alertas && (Sim.corriendo || Sim.fugasReveladas)
       ? ' · ' + plural(alertas, 'alerta', 'alertas')
       : '');
 
-  // La primera anomalía abre el acordeón por sí sola: la app señala, no adivina.
-  if (alertas > 0 && Sim.corriendo && !Sim.sensoresAvisados) {
-    Sim.sensoresAvisados = true;
-    const panel = $('sensores-panel');
-    if (panel) {
-      panel.open = true;
+  if (alertas > 0 && Sim.corriendo) {
+    if (!Sim.sensoresAvisados) {
+      Sim.sensoresAvisados = true;
+      const panel = $('sensores-panel');
+      if (panel) {
+        panel.open = true;
+      }
     }
     marcarFugasReveladas();
   }
@@ -3626,7 +2540,6 @@ function actualizarAvisoVacio() {
       : 'La bomba está apagada. Actívala para recuperar el agua cuando haya suministro, o sigue el tiempo sin agua para observar el corte.';
   }
 
-  // El panel de tanque vacío ya es una alerta: no duplicamos el mensaje.
   const alerta = $('sim-alerta');
   if (alerta) {
     alerta.hidden = mostrar || !MENSAJES_SIM[Sim.estado];
@@ -3717,9 +2630,9 @@ function simRender() {
   renderBomba();
   actualizarAvisoVacio();
   renderEstadoSesion();
+  detectarEventos();
+  renderEntradaSuministro();
 
-  // El aviso solo se reescribe al cambiar de estado (no en cada fotograma)
-  // Sin mensaje no hay tarjeta: un "todo bien" permanente solo ocupaba sitio.
   if (estado !== Sim.estado) {
     Sim.estado = estado;
     const m = MENSAJES_SIM[estado];
@@ -3735,28 +2648,36 @@ function simRender() {
     Sim.estadoSensores = estado;
     renderSensores();
   }
+  renderBitacora();
 }
 
 function simPaso(t) {
   if (!Sim.corriendo) {
     return;
   }
-  // tope de 0.1 s: si la pestaña estuvo oculta, no hay un salto brusco al volver
   const dt = Math.max(0, Math.min((t - Sim.ultimo) / 1000, 0.1));
   Sim.ultimo = t;
 
-  // Integración exacta por fronteras horarias para conservar la integral de 24 h a cualquier velocidad
   let restante = dt * Sim.velocidad;
   while (restante > 0) {
     const segEnHora = 3600 - (Sim.tiempo % 3600);
     const paso = Math.min(restante, segEnHora > 0 ? segEnHora : 3600);
     actualizarBomba();
     const f = simFlujos();
+    const horaAntes = Math.floor(Sim.tiempo / 3600);
+    const fugasAntes = fugasIniciadas().length;
     Sim.nivel = Math.min(Math.max(Sim.nivel + f.neto * paso, 0), Estado.capacidad);
     Sim.consumoAcumulado += f.consumo * paso;
     Sim.aguaPerdida += f.consumoFuga * paso;
     Sim.tiempo += paso;
     restante -= paso;
+    const fugasAhora = fugasIniciadas().length;
+    if (fugasAhora !== fugasAntes) {
+      marcarFugasReveladas();
+    }
+    if (fugasAhora !== fugasAntes || Math.floor(Sim.tiempo / 3600) !== horaAntes) {
+      Sim.ultimoSensores = 0;
+    }
     if (Sim.seguirSinAgua && Sim.nivel > 0 && f.entrada > 0) {
       Sim.seguirSinAgua = false;
       Estado.simSeguirSinAgua = false;
@@ -3765,7 +2686,6 @@ function simPaso(t) {
       if (!Sim.seguirSinAgua) {
         simPausar();
         Sim.pausaVacio = true;
-        // La sesión puede terminar aquí: el resumen solo se abre con Finalizar.
         $('sim-finalizar').hidden = false;
         break;
       }
@@ -3799,6 +2719,14 @@ function simIniciar() {
   Sim.corriendo = true;
   Estado.simCorriendo = true;
   Sim.ultimo = performance.now();
+  Sim.logPrev = {
+    red: redDisponible(),
+    bomba: Sim.bombaEncendida,
+    vacio: Sim.nivel !== null && Sim.nivel <= 0,
+    pico: esHoraPico(horaActualSim()),
+  };
+  registrarEvento('Comienza la simulación', '');
+  renderBitacora();
   $('sim-play').textContent = '⏸ Pausar';
   $('sim-finalizar').hidden = false;
   renderBomba();
@@ -3830,15 +2758,17 @@ function simReiniciar() {
   Sim.consumoAcumulado = 0;
   Estado.simConsumoAcumulado = 0;
   Sim.pausaVacio = false;
-  Sim.estado = null; // fuerza a reescribir el aviso
+  Sim.estado = null;
   Sim.velocidad = Estado.simVelocidad;
   Sim.modoSuministro = Estado.simModoSuministro;
   Sim.bombaActiva = Estado.simBombaActiva !== false;
   Sim.aguaPerdida = 0;
   Estado.simAguaPerdida = 0;
   Sim.sensoresAvisados = false;
+  Sim.bitacora = [];
+  Sim.bitacoraSucia = true;
+  Sim.logPrev = { red: null, bomba: null, vacio: null, pico: null };
   limpiarFugasReveladas();
-  // Cada corrida vuelve a esconder la fuga en otros aparatos.
   aplicarCasoFuga(Sim.fugasActivo ? casoFugaAleatorio() : Sim.casoFuga);
   $('sim-vel').value = String(Sim.velocidad);
   renderModosSuministro();
@@ -3851,41 +2781,32 @@ function escapeHtml(texto) {
   return div.innerHTML;
 }
 
-// Muestra el modal de resumen al finalizar una sesión de simulación
 function mostrarResumenSimulacion() {
   const aguaConsumida = Math.max(0, Sim.consumoAcumulado);
-  const consumoDia = litrosTotales();
   const fugasDia = resumenFugas();
-  const fugasSim = fugasSimPorSala();
-  const limOMS = limiteOMS();
-  const pctOMS =
-    limOMS > 0
-      ? Math.min((consumoDia / Math.max(1, Estado.habitantes) / CONFIG.litrosOMS) * 100, 100)
-      : 0;
+  const fugasSim = fugasSimPorSala(true);
 
-  // KPIs principales
   $('resumen-agua-consumida').textContent = NUM_ES.format(Math.round(aguaConsumida)) + ' L';
   $('resumen-tiempo').textContent = formatoReloj(Sim.tiempo);
   $('resumen-fugas').textContent =
     NUM_ES.format(Math.round(fugasDia.litros + fugasSim.total)) + ' L/día';
-  $('resumen-uso-oms').textContent = Math.round(pctOMS) + ' %';
 
-  // Fugas sorpresa de la corrida: el aparato exacto, su tasa y lo perdido.
   const textoFugas = $('resumen-fugas-resumen');
   const listaFugas = $('resumen-fugas-lista');
   const btnPlano = $('resumen-ver-plano');
   if (textoFugas && listaFugas && btnPlano) {
     listaFugas.innerHTML = '';
-    const casoActivo = Sim.fugasActivo && Sim.fugasActivas.length > 0;
+    const iniciadas = fugasIniciadas();
+    const casoActivo = Sim.fugasActivo && iniciadas.length > 0;
     if (casoActivo) {
       textoFugas.textContent =
-        Sim.fugasActivas.length +
+        iniciadas.length +
         ' fuga(s) · ' +
         fugasSim.total +
         ' L/día · ' +
         Math.round(Sim.aguaPerdida) +
         ' L perdidos durante la sesión';
-      Sim.fugasActivas.forEach((id) => {
+      iniciadas.forEach((id) => {
         const d = Estado.dispositivos.get(id);
         if (!d) {
           return;
@@ -3903,6 +2824,10 @@ function mostrarResumenSimulacion() {
       });
       btnPlano.hidden = false;
       marcarFugasReveladas();
+    } else if (Sim.fugasActivo && Sim.fugasActivas.length > 0) {
+      textoFugas.textContent =
+        'La corrida terminó antes de que apareciera una anomalía. Reinicia para volver a intentarlo.';
+      btnPlano.hidden = true;
     } else {
       textoFugas.textContent = Sim.fugasActivo
         ? 'Este plano no tiene aparatos compatibles con una fuga sorpresa.'
@@ -3911,7 +2836,6 @@ function mostrarResumenSimulacion() {
     }
   }
 
-  // Consumo por habitación
   const contenedor = $('resumen-lista-habitaciones');
   contenedor.innerHTML = '';
 
@@ -3967,7 +2891,6 @@ document.querySelectorAll('[data-modo-suministro]').forEach((btn) => {
   btn.addEventListener('click', () => seleccionarModoSuministro(btn.dataset.modoSuministro));
 });
 
-// Notas cortas del simulador: un botón "?" por bloque y solo una abierta a la vez.
 function notaDe(btn) {
   return btn && btn.dataset.nota ? $(btn.dataset.nota) : null;
 }
@@ -3983,8 +2906,6 @@ function cerrarNotasSim(excepto) {
   });
 }
 
-// Fugas sorpresa: el caso se sortea al activarlas y en cada reinicio;
-// el código queda solo en el estado, no en la interfaz.
 $('sim-fugas-activo').addEventListener('change', (e) => {
   Sim.fugasActivo = e.target.checked;
   Estado.simFugasActivo = Sim.fugasActivo;
@@ -4022,8 +2943,6 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Bomba del tinaco: un solo interruptor. Encendida, el motor se gobierna solo
-// (arranca al 20 % y para al llenar); apagada, el tinaco depende de la red.
 $('sim-bomba-activa').addEventListener('change', (e) => {
   Sim.bombaActiva = e.target.checked;
   Estado.simBombaActiva = Sim.bombaActiva;
@@ -4043,7 +2962,6 @@ $('sim-seguir-sin-agua').addEventListener('click', () => {
   simIniciar();
 });
 
-// Atajo del tanque vacío: activa la bomba automática y reanuda la simulación.
 $('sim-encender-bomba').addEventListener('click', () => {
   if (!redDisponible()) {
     return;
@@ -4059,51 +2977,6 @@ $('sim-encender-bomba').addEventListener('click', () => {
   }
 });
 
-/* ---------- Inputs globales y arranque ---------- */
-$('habitantes').addEventListener('keydown', (e) => {
-  if (['.', ',', 'e', 'E', '-', '+'].includes(e.key)) {
-    e.preventDefault();
-  }
-});
-
-$('recibo-simas').addEventListener('keydown', (e) => {
-  if (['e', 'E', '-', '+'].includes(e.key)) {
-    e.preventDefault();
-  }
-});
-$('recibo-simas').addEventListener('input', (e) => {
-  const v = parseFloat(e.target.value);
-  Estado.reciboM3 = isNaN(v) || v <= 0 ? 0 : Math.min(v, 999);
-});
-
-$('habitantes').addEventListener('input', (e) => {
-  Estado.habitantes = entero(e.target.value, 1, 50);
-  recalcularUsosPorNivel();
-});
-$('habitantes').addEventListener('change', (e) => (e.target.value = Estado.habitantes));
-$('capacidad').addEventListener('change', (e) => {
-  Estado.capacidad = parseInt(e.target.value, 10);
-  simReiniciar(); // otro tanque = simulación nueva
-});
-
-$('btn-piso').addEventListener('click', async () => {
-  const nombre = await modalPrompt('Nombre del piso (ej. Planta Alta, Azotea):');
-  if (!nombre) {
-    return;
-  }
-  const id = crearPiso(nombre);
-  renderTabs();
-  activarPiso(id); // salta al piso recién creado
-});
-
-$('btn-sala').addEventListener('click', async () => {
-  const datos = await abrirModalSala();
-  if (datos) {
-    crearHabitacion(datos.nombre, Estado.pisoActivo, datos);
-  }
-});
-
-// Manejo de errores de CDN (4.3)
 window.__cdnError = (lib) => {
   const alerta = $('alerta');
   const mensaje =
@@ -4124,9 +2997,6 @@ window.addEventListener('beforeunload', (e) => {
   }
 });
 
-// Sincroniza el objeto Sim (en memoria) con los valores restaurados de Estado (localStorage)
-// Guarda el estado vivo de la simulación al salir o al ocultar la pestaña.
-// No usa notificar() para no repintar en ese momento; guarda directamente.
 function persistirSimulacion() {
   if (reiniciandoCasa || Sim.nivel === null) {
     return;
@@ -4163,10 +3033,11 @@ function sincronizarSimDesdeEstado() {
   Sim.consumoAcumulado = Math.max(0, Number(Estado.simConsumoAcumulado) || 0);
   Sim.casoFuga = normalizarCasoFuga(Estado.simCasoFuga);
   Sim.fugasActivo = Estado.simFugasActivo !== false;
-  // Al recargar se respeta el caso guardado; solo se descartan ids inexistentes.
   Sim.fugasActivas = Array.isArray(Estado.simFugasActivas)
     ? Estado.simFugasActivas.filter((id) => Estado.dispositivos.has(id))
     : [];
+  const casoGuardado = generarCasoFuga(Sim.casoFuga);
+  Sim.horaInicioFuga = new Map(Sim.fugasActivas.map((id) => [id, casoGuardado.horas.get(id) ?? 0]));
   Sim.aguaPerdida = Math.max(0, Number(Estado.simAguaPerdida) || 0);
   Sim.nivel =
     Estado.simNivel !== null ? Math.min(Estado.simNivel, Estado.capacidad) : Estado.capacidad;
@@ -4187,21 +3058,14 @@ function sincronizarSimDesdeEstado() {
   }
 }
 
-/* ===========================================================
-   ONBOARDING EXPRESS Y PLANTILLAS INICIALES
-   =========================================================== */
-
+// Onboarding express y plantillas iniciales
 let vistaAvanzada = 'constructor';
-let personasAutomaticas = false; // el número de personas sigue la sugerencia del tamaño
 
-// Al elegir el tamaño de la vivienda se sugiere un número de personas,
-// pero nunca se pisa un valor escrito a mano ni una cifra propia guardada.
-function sincronizarHabitantesSugeridos(perfil) {
-  const sugerido = HABITANTES_SUGERIDOS[perfil];
-  if (!personasAutomaticas || !sugerido) {
+function elegirVivienda(perfil) {
+  if (!HABITANTES_SUGERIDOS[perfil]) {
     return;
   }
-  $('onb-habitantes').value = String(sugerido);
+  crearCasa({ perfil, habitantes: HABITANTES_SUGERIDOS[perfil] });
 }
 
 function abrirOnboarding() {
@@ -4209,70 +3073,44 @@ function abrirOnboarding() {
   if (!modal) {
     return;
   }
-  const personas = String(Estado.habitantes || 4);
-  $('onb-habitantes').value = personas;
-  // En la primera visita la cifra es una sugerencia; al volver, solo si el
-  // usuario la dejó en el valor que corresponde a su tamaño de vivienda.
-  personasAutomaticas =
-    !Estado.onboardingCompletado ||
-    personas === String(HABITANTES_SUGERIDOS[normalizarPerfil(Estado.perfil)]);
-  $('onb-recibo').value = Estado.reciboM3 > 0 ? String(Estado.reciboM3) : '20';
-  document.querySelectorAll('input[name="onb-perfil"]').forEach((radio) => {
-    radio.checked = radio.value === normalizarPerfil(Estado.perfil);
-  });
-  $('onb-habitantes-error').hidden = true;
-  $('onb-recibo-error').hidden = true;
-  $('onb-perfil-error').hidden = true;
-  $('onb-habitantes').removeAttribute('aria-invalid');
-  $('onb-recibo').removeAttribute('aria-invalid');
-  $('onb-perfiles').removeAttribute('aria-invalid');
   modal.hidden = false;
-  const elegido = document.querySelector('input[name="onb-perfil"]:checked');
-  (elegido || $('onb-habitantes')).focus();
+  const primera = modal.querySelector('.perfil-opcion');
+  if (primera) {
+    primera.focus();
+  }
 }
 
-function validarOnboarding() {
-  const n = Number($('onb-habitantes').value);
-  const m3 = parseFloat($('onb-recibo').value);
-  const perfil = document.querySelector('input[name="onb-perfil"]:checked');
-  let valido = true;
-
-  const marcar = (inputId, errorId, ok) => {
-    const input = $(inputId);
-    const error = $(errorId);
-    if (ok) {
-      input.removeAttribute('aria-invalid');
-    } else {
-      input.setAttribute('aria-invalid', 'true');
-    }
-    error.hidden = ok;
-    if (!ok) {
-      valido = false;
-    }
-  };
-
-  marcar('onb-habitantes', 'onb-habitantes-error', Number.isInteger(n) && n >= 1 && n <= 50);
-  marcar('onb-recibo', 'onb-recibo-error', !isNaN(m3) && m3 > 0 && m3 <= 999);
-  $('onb-perfil-error').hidden = Boolean(perfil);
-  const grupoPerfil = $('onb-perfiles');
-  if (perfil) {
-    grupoPerfil.removeAttribute('aria-invalid');
-  } else {
-    grupoPerfil.setAttribute('aria-invalid', 'true');
-    valido = false;
+function crearCasa(datos) {
+  pausado = true;
+  try {
+    vaciarCasa();
+    Estado.habitantes = datos.habitantes;
+    Estado.perfil = datos.perfil;
+    Estado.capacidad = CAPACIDAD_POR_PERFIL[datos.perfil] || 750;
+    Estado.onboardingCompletado = true;
+    Estado.simModoSuministro = 'normal';
+    Estado.simVelocidad = 3600;
+    Estado.simBombaActiva = true;
+    Estado.simConsumoAcumulado = 0;
+    generarPlantilla(datos.perfil, datos.habitantes);
+    recalcularUsosPorNivel();
+    Estado.pisoActivo = Estado.pisos.keys().next().value;
+    renderTabs();
+    activarPiso(Estado.pisoActivo);
+    simReiniciar();
+  } finally {
+    pausado = false;
+    notificar();
   }
 
-  if (!valido) {
-    const primero = $('onb-perfiles').getAttribute('aria-invalid')
-      ? document.querySelector('input[name="onb-perfil"]')
-      : $('onb-habitantes').getAttribute('aria-invalid')
-        ? $('onb-habitantes')
-        : $('onb-recibo');
-    if (primero) {
-      primero.focus();
-    }
+  $('habitantes').textContent = Estado.habitantes;
+  $('capacidad').textContent = Estado.capacidad + ' L';
+  $('modal-onboarding').hidden = true;
+  const titulo = $('vista-constructor').querySelector('h2');
+  if (titulo) {
+    titulo.setAttribute('tabindex', '-1');
+    titulo.focus({ preventScroll: true });
   }
-  return valido ? { habitantes: n, reciboM3: m3, perfil: perfil.value } : null;
 }
 
 function vaciarCasa() {
@@ -4288,7 +3126,6 @@ function vaciarCasa() {
   $('tabs').innerHTML = '';
 }
 
-// Crea una habitación y coloca sus dispositivos repartidos en el espacio libre.
 function crearSalaConDispositivos(nombre, piso, cs, rs, dispositivos, tipo, rol) {
   const sala = crearHabitacion(nombre, piso, { cs, rs, tipo, rol });
   const posiciones = [
@@ -4388,7 +3225,6 @@ function generarPlantilla(perfil, n) {
     return;
   }
 
-  // Nivel alto: vivienda amplia
   crearSalaConDispositivos(
     'Cocina',
     pb,
@@ -4459,47 +3295,6 @@ function generarPlantilla(perfil, n) {
   );
 }
 
-function procesarOnboarding(evento) {
-  evento.preventDefault();
-  const datos = validarOnboarding();
-  if (!datos) {
-    return;
-  }
-
-  pausado = true;
-  try {
-    vaciarCasa();
-    Estado.habitantes = datos.habitantes;
-    Estado.reciboM3 = datos.reciboM3;
-    Estado.perfil = datos.perfil;
-    Estado.capacidad = capacidadParaHabitantes(datos.habitantes);
-    Estado.onboardingCompletado = true;
-    Estado.simModoSuministro = 'normal';
-    Estado.simVelocidad = 3600;
-    Estado.simBombaActiva = true;
-    Estado.simConsumoAcumulado = 0;
-    generarPlantilla(datos.perfil, datos.habitantes);
-    recalcularUsosPorNivel();
-    Estado.pisoActivo = Estado.pisos.keys().next().value;
-    renderTabs();
-    activarPiso(Estado.pisoActivo);
-    simReiniciar();
-  } finally {
-    pausado = false;
-    notificar();
-  }
-
-  $('habitantes').value = Estado.habitantes;
-  $('capacidad').value = Estado.capacidad;
-  $('recibo-simas').value = Estado.reciboM3;
-  $('modal-onboarding').hidden = true;
-  const titulo = $('vista-constructor').querySelector('h2');
-  if (titulo) {
-    titulo.setAttribute('tabindex', '-1');
-    titulo.focus({ preventScroll: true });
-  }
-}
-
 async function reiniciarCasa() {
   const ok = await modalConfirm(
     'Se borrarán el plano, los dispositivos y tus respuestas. Esta acción no se puede deshacer.',
@@ -4508,14 +3303,13 @@ async function reiniciarCasa() {
   if (!ok) {
     return;
   }
-  // Evita que beforeunload/visibilitychange vuelvan a guardar la casa recién borrada.
   reiniciandoCasa = true;
   cambiosPendientes = false;
   try {
     CLAVES_LEGADO.forEach((clave) => localStorage.removeItem(clave));
     localStorage.removeItem(CLAVE_LS);
   } catch (_) {
-    // localStorage bloqueado: recargar de todos modos deja la app en memoria.
+    // Recargar igualmente si localStorage está bloqueado
   }
   location.reload();
 }
@@ -4572,7 +3366,6 @@ function mostrarVistaAvanzada(nombre) {
   }
 }
 
-/* --- Onboarding y reinicio --- */
 function trapaFoco(contenedor, evento) {
   const focos = [
     ...contenedor.querySelectorAll(
@@ -4593,22 +3386,12 @@ function trapaFoco(contenedor, evento) {
   }
 }
 
-$('onboarding-form').addEventListener('submit', procesarOnboarding);
-$('onb-habitantes').addEventListener('input', () => {
-  personasAutomaticas = false;
-  $('onb-habitantes-error').hidden = true;
-  $('onb-habitantes').removeAttribute('aria-invalid');
-});
-$('onb-recibo').addEventListener('input', () => {
-  $('onb-recibo-error').hidden = true;
-  $('onb-recibo').removeAttribute('aria-invalid');
-});
-document.querySelectorAll('input[name="onb-perfil"]').forEach((radio) => {
-  radio.addEventListener('change', () => {
-    $('onb-perfil-error').hidden = true;
-    $('onb-perfiles').removeAttribute('aria-invalid');
-    sincronizarHabitantesSugeridos(radio.value);
-  });
+$('onboarding-form').addEventListener('submit', (evento) => evento.preventDefault());
+$('onb-perfiles').addEventListener('click', (evento) => {
+  const opcion = evento.target.closest('.perfil-opcion');
+  if (opcion) {
+    elegirVivienda(opcion.dataset.perfil);
+  }
 });
 $('modal-onboarding').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
@@ -4621,13 +3404,12 @@ $('modal-onboarding').addEventListener('keydown', (e) => {
 });
 $('btn-reiniciar-casa').addEventListener('click', reiniciarCasa);
 
-/* --- Arranque --- */
+// Arranque principal
 construirPaleta();
-cargarEstado(); // restaura localStorage v3; sin datos abre el onboarding
+cargarEstado();
 iniciarApp();
 sincronizarSimDesdeEstado();
 
-// Guía de uso: divulgación progresiva, sin saturar las pantallas.
 let ayudaRetorno = null;
 
 function ayudaTeclas(evento) {
@@ -4672,37 +3454,6 @@ $('modal-ayuda').addEventListener('click', (e) => {
   }
 });
 
-// Pestañas internas del diagnóstico: un solo panel visible a la vez.
-function mostrarPanelDiagnostico(nombre) {
-  const paneles = {
-    consumo: $('diag-consumo'),
-    recibo: $('diag-recibo'),
-    social: $('diag-social'),
-  };
-  if (!paneles[nombre]) {
-    return;
-  }
-
-  document.querySelectorAll('[data-diag]').forEach((tab) => {
-    const activo = tab.dataset.diag === nombre;
-    tab.classList.toggle('activa', activo);
-    tab.setAttribute('aria-selected', activo ? 'true' : 'false');
-  });
-
-  Object.entries(paneles).forEach(([clave, panel]) => {
-    panel.hidden = clave !== nombre;
-  });
-
-  if (nombre === 'consumo') {
-    requestAnimationFrame(() => renderDashboard());
-  }
-}
-
-document.querySelectorAll('[data-diag]').forEach((tab) => {
-  tab.addEventListener('click', () => mostrarPanelDiagnostico(tab.dataset.diag));
-});
-
-// Menú de acciones secundarias.
 const btnAcciones = $('btn-acciones');
 const menuAcciones = $('menu-acciones');
 
@@ -4739,16 +3490,12 @@ if (btnAcciones && menuAcciones) {
 
 $('btn-ir-simulador').addEventListener('click', () => mostrarVistaAvanzada('simulador'));
 
-// Pestañas de vista avanzada: alternar entre Mi casa y Simulador.
-// mostrarVistaAvanzada() también recalcula el layout oculto al entrar.
 document.querySelectorAll('.vista-tab').forEach((tab) => {
   tab.addEventListener('click', () => mostrarVistaAvanzada(tab.dataset.vista));
 });
 
-// Renderizar guía de cuadrícula al iniciar (no-op si el constructor está oculto)
 renderizarGuiaGrid();
 
-// Listeners: modal de resumen de simulación
 $('modal-resumen-cerrar').addEventListener('click', () => {
   $('modal-resumen-simulacion').hidden = true;
 });
@@ -4758,11 +3505,9 @@ $('modal-resumen-volver').addEventListener('click', () => {
   simReiniciar();
 });
 
-// Cierra el resumen y lleva el hallazgo al plano: la fuga queda marcada.
 $('resumen-ver-plano').addEventListener('click', () => {
   $('modal-resumen-simulacion').hidden = true;
   marcarFugasReveladas();
-  // La fuga puede estar en otro piso: hay que abrirlo antes de enfocarla.
   const d = Estado.dispositivos.get(Sim.fugasActivas[0]);
   const hab = d ? Estado.habitaciones.get(d.sala) : null;
   if (hab) {
