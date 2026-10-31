@@ -1,4 +1,4 @@
-/* SmartGota — app.js (v50) */
+/* SmartGota — app.js (v51) */
 'use strict';
 
 // Núcleo de cálculo compartido con dominio.js (script clásico previo)

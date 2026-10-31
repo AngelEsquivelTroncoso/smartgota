@@ -2169,6 +2169,74 @@ input:focus {
   }
 }
 
+/* Portátiles y ventanas bajas (720-768 px de ventana ≈ 630-680 de viewport).
+   El resumen ocupaba 297 px y empujaba el plano fuera de pantalla, así que en
+   lugar de recortar tipografía se reparte el resumen en dos filas usando el
+   ancho: cabecera arriba, datos + fugas abajo. */
+@media (min-width: 1000px) and (max-height: 780px) {
+  body {
+    padding-top: var(--e-10);
+  }
+  .cabecera {
+    margin-bottom: var(--e-10);
+  }
+  .marca__icono {
+    width: 32px;
+    height: 32px;
+  }
+  .vistas {
+    margin-bottom: var(--e-10);
+  }
+  .resumen-casa {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--e-6) var(--e-16);
+    margin-bottom: var(--e-10);
+    padding: var(--e-12);
+  }
+  .resumen-casa .eyebrow {
+    display: none;
+  }
+  .resumen-casa__cab {
+    grid-column: 1 / -1;
+    align-items: center;
+  }
+  .resumen-casa__datos {
+    grid-column: 1;
+    flex-wrap: nowrap;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .kpi {
+    padding: var(--e-8) var(--e-12);
+  }
+  .kpi strong {
+    margin: 0;
+    font-size: var(--t-xl);
+  }
+  .kpi-fugas {
+    grid-column: 2;
+    margin: 0;
+  }
+  .col-disp {
+    padding: var(--e-10) var(--e-12);
+  }
+  .col-disp .seccion-cab {
+    margin-bottom: var(--e-6);
+  }
+  .col-plano {
+    padding: var(--e-12);
+  }
+  .col-plano .seccion-cab {
+    margin-bottom: var(--e-8);
+  }
+  .tabs {
+    margin-bottom: var(--e-4);
+  }
+}
+
 @media (max-width: 900px) {
   .sim__cuerpo {
     grid-template-columns: 1fr;

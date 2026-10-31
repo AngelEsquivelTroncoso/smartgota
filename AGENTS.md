@@ -21,7 +21,7 @@ Proyecto web estático único: `index.html` + `styles.css` + `dominio.js` + `app
 
 ## Arranque y navegación
 
-- Punto de entrada: `index.html`; los scripts son `dominio.js?v=50` y después `app.js?v=50`, ambos `defer`. Assets con `?v=50`.
+- Punto de entrada: `index.html`; los scripts son `dominio.js?v=51` y después `app.js?v=51`, ambos `defer`. Assets con `?v=51`.
 - Arranque: `construirPaleta(); cargarEstado(); iniciarApp(); sincronizarSimDesdeEstado();`.
 - No hay modo básico ni asistente de 3 pasos. La app abre directamente la vista “Mi casa”; si no hay onboarding completado, `iniciarApp()` muestra `#modal-onboarding`.
 - `#vistas-avanzadas` alterna entre “Mi casa” (`#vista-constructor`) y “Simulador” (`#vista-simulador`) con `mostrarVistaAvanzada()`.
@@ -70,6 +70,7 @@ Proyecto web estático único: `index.html` + `styles.css` + `dominio.js` + `app
 - `renderDashboard()` calcula `litrosTotales()` y `resumenPorSala()`; siguen siendo la única fuente de verdad para el consumo.
 - Todos los números visibles pasan por `NUM_ES` (`Intl.NumberFormat('es-MX')`): `litrosTexto()` para litros y `plural()` para conteos ("1 habitación" / "4 habitaciones"). No volver a llamar `toLocaleString('es-MX')` a mano.
 - El resultado vive **dentro** de la banda de datos: `.kpis-resumen` es un flex con `flex: 1 1 520px` y `margin-left: auto`, y cada `.kpi` conserva su caja con `flex: 0 1 300px`. Así la fila se lee de un tirón (datos a la izquierda, resultado a la derecha) sin perder el diseño de las tarjetas. A ≤700 px el bloque pasa a fila propia con dos columnas iguales.
+- El resumen se comprime **por altura**, no por ancho: con `min-width: 1000px` y `max-height: 780px` (ventanas de 720-768 px, es decir 630-680 de viewport) `.resumen-casa` pasa a grid de dos filas — cabecera arriba con el botón centrado, y abajo la banda de datos junto a la píldora de fugas en la segunda columna. Se oculta `.resumen-casa .eyebrow` ("Tu casa", redundante con la pestaña "Mi casa") y el `.kpi` usa `--t-xl` con padding de 8/12. Medido: la tarjeta baja de 297 a 160 px y `#plano` sube de y=575 a y=400, así que en 1280×720 el plano entra en pantalla. En pantallas altas (>780 px de alto) no cambia nada: no bajar ese umbral sin volver a medir.
 - El resumen superior tiene una tarjeta y una franja: el consumo manda (`.kpi--principal`, `#m-litros` con el equivalente mensual en `#m-litros-mes-corta`) y la pérdida por fugas es un estado, no un indicador comparable: `#m-fugas` y `#m-fugas-detalle` viven en `.kpi-fugas`, cuyo punto pasa a rojo con `data-tono='alerta'` cuando hay fugas en el plano o una fuga sorpresa revelada. Personas y tinaco son valores fijos de la vivienda (`#habitantes`, `#capacidad`); el periodo mensual queda fijo en `CONFIG.diasMes` (30). **No hay recibo mensual**: el plano es inmutable y compararlo contra un dato fijo por vivienda generaba contradicciones, así que ese concepto se eliminó por completo (UI, estado, PDF).
 - El diagnóstico ordena los tipos de dispositivo de mayor a menor (`renderTopTipos` y `actualizarGrafico` comparten ese orden, usando `resumenPorTipo()`) y la dona no dibuja leyenda: cada fila de la lista lleva un punto con el color de su segmento y la barra de magnitud. Las tres cifras (`#m-mayor`, `#m-pct-tinaco`, `#m-litros-mes`) van en una franja de tres columnas sobre la dona.
 - La recomendación se genera con `generarRecomendacion()` y queda plegada en `#alerta-rec-detalle`; la alerta visible es una sola (`#alerta`).
@@ -177,6 +178,7 @@ Clave: `smartgota:estado:v3`
 - Comprobar que la banda de datos muestra `#habitantes` y `#capacidad` como valores fijos (sin inputs), derivados del tipo de vivienda: Compacta 2 / 450 L, Estándar 4 / 750 L, Amplia 5 / 1100 L, y que no aparece ningún indicador de recibo (ni en el resumen, ni en el diagnóstico, ni en el PDF).
 - Comprobar el catálogo: cada tarjeta muestra icono, nombre, flujo base y descripción; la paleta no responde al clic ni al arrastre. Tocar un clon del plano abre la ficha solo-modo (`#ed-modo`).
 - Comprobar el cambio de layout en 1000 px: por encima, `.app-grid` muestra el catálogo a la izquierda (`disp`/`plano` en dos columnas) y cada aparato es una fila; justo por debajo, la paleta vuelve a ser la banda de tres grupos y la columna del plano pasa a ir debajo, sin desbordamiento horizontal.
+- Comprobar el corte por altura: en 1280×720 y 1366×768 el resumen mide ~160 px (dos filas, sin el eyebrow) y el plano empieza cerca de y=400, dentro de la pantalla; en 1280×900 el resumen sigue midiendo ~297 px con la píldora de fugas en su propia línea. Con la fuga sorpresa revelada la píldora crece (~390 px) y el bloque de datos sigue entrando sin desbordamiento horizontal en 1000 px de ancho.
 - Comprobar que no existen campos de minutos, cargas, descargas ni frecuencia en la ficha del dispositivo y que `#ed-modo` sigue siendo editable.
 - Agregar un segundo aparato del mismo uso baja el uso de ambos y deja igual el total; borrarlo lo devuelve. Añadir un baño secundario completo tampoco cambia el total: solo cambia el reparto entre baños.
 - Comprobar que el plano es inmutable: no hay botones de agregar/borrar piso ni habitación, ni asas de tamaño, ni papelera; el rótulo no responde al doble clic.
@@ -203,7 +205,7 @@ Clave: `smartgota:estado:v3`
 - Comprobar el desfase de fugas: a 3600× y a 21600× la bitácora registra “Anomalía detectada en …” con la hora exacta de inicio del caso (la del `simCasoFuga`, entre 08:00 y 18:00) y no horas después, y la fila del sensor pasa a “Anómalo” sin esperar el throttle.
 - Comprobar el botón de suministro: con el tinaco al 100 % y la simulación sin iniciar o en pausa no brilla (`.modo-suministro--flujo`) ni dice “Suministro · entrando”; solo lo hace con la simulación corriendo y la red entregando agua.
 - Abrir el resumen de sesión: las tres cifras (`.resumen__kpis`) van en tres columnas iguales en escritorio y apiladas a ≤480 px, sin hueco vacío.
-- Si un cambio de CSS/JS no se ve, actualizar el parámetro `?v=50` o limpiar caché del navegador.
+- Si un cambio de CSS/JS no se ve, actualizar el parámetro `?v=51` o limpiar caché del navegador.
 
 ## Gotchas
 
