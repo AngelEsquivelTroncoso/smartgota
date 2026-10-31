@@ -21,7 +21,7 @@ Proyecto web estático único: `index.html` + `styles.css` + `dominio.js` + `app
 
 ## Arranque y navegación
 
-- Punto de entrada: `index.html`; los scripts son `dominio.js?v=49` y después `app.js?v=49`, ambos `defer`. Assets con `?v=49`.
+- Punto de entrada: `index.html`; los scripts son `dominio.js?v=50` y después `app.js?v=50`, ambos `defer`. Assets con `?v=50`.
 - Arranque: `construirPaleta(); cargarEstado(); iniciarApp(); sincronizarSimDesdeEstado();`.
 - No hay modo básico ni asistente de 3 pasos. La app abre directamente la vista “Mi casa”; si no hay onboarding completado, `iniciarApp()` muestra `#modal-onboarding`.
 - `#vistas-avanzadas` alterna entre “Mi casa” (`#vista-constructor`) y “Simulador” (`#vista-simulador`) con `mostrarVistaAvanzada()`.
@@ -76,8 +76,8 @@ Proyecto web estático único: `index.html` + `styles.css` + `dominio.js` + `app
 - El énfasis de los mensajes no usa comillas angulares: `marcar(nombre)` envuelve el término con marcas invisibles y `pintarDestacado(el, texto)` las convierte en `<strong>` al escribir en el DOM (`textContent` por trozo, nunca `innerHTML`). `textoPlano()` las quita antes de jsPDF. Aplica al confirm de borrado y a la recomendación.
 - Las acciones secundarias (“Exportar PDF”, “Descargar gráfico PNG”, “Reiniciar casa”) están en el menú `#menu-acciones`, abierto con `#btn-acciones`.
 - La paleta se agrupa por `GRUPOS_PALETA` (Baño · Cocina y lavandería · Casa y exterior); no añadir dispositivos fuera de esos grupos sin actualizar la lista.
-- La paleta es ahora un **catálogo informativo** (banda horizontal encima del plano, `#paleta` flex, tres `.paleta__grupo` con separadores; en pantallas angostas los grupos se apilan con hairline superior). Cada `.item` es una tarjeta con icono, nombre y flujo base; un botón `?` (`.item__info`) abre la ventana emergente `#modal-info` con la descripción (`abrirInfoDispositivo()`). La tarjeta no se arrastra ni se selecciona.
-- El plano ya no hereda el alto de la paleta: `.app-grid` es de una columna y `align-items: start`, y `.col-plano #plano` fuerza `flex: 0 0 auto` con `min-height: 0`. Antes el `stretch` igualaba los 716 px de la columna izquierda y dejaba media tarjeta vacía con una sola fila de habitaciones. El alto lo dictan las filas guía (`FILAS_MIN` 2 → ~330 px); ajustar las columnas al contenido dejaría el plano flotando a la izquierda, así que no se hace.
+- La paleta es ahora un **catálogo informativo**. Con 1000 px o más es la **columna izquierda** de `.app-grid` (`minmax(250px, 300px)`), `#paleta` en columna, un `.paleta__grupo` por bloque con hairline superior y cada `.item` como fila (icono + nombre + flujo) gracias a `.col-disp .item` en grid. Por debajo de 1000 px vuelve a ser una banda horizontal de tres grupos con separador lateral: es el respaldo para ventanas partidas, no el diseño principal. Cada `.item` lleva un botón `?` (`.item__info`) que abre la ventana emergente `#modal-info` con la descripción (`abrirInfoDispositivo()`). La tarjeta no se arrastra ni se selecciona.
+- El plano no hereda el alto del catálogo: `.app-grid` usa `align-items: start` y `.col-plano #plano` fuerza `flex: 0 0 auto` con `min-height: 0`. El alto lo dictan las filas guía (`FILAS_MIN` 2 → ~330 px). El plano conserva el ancho sobrante a la derecha a propósito: `#plano` usa `repeat(auto-fill, minmax(140px, 1fr))` y las celdas quedan ~cuadradas; ajustar las columnas al contenido las estiraría a rectángulos y rompería la lectura de planta.
 - El clic sobre un dispositivo del plano (clon) abre su ficha solo-modo (`abrirEditor`) para cambiar la eficiencia. Ya no hay colocación, arrastre ni selección de aparatos.
 - “Reiniciar casa” pide confirmación con `modalConfirm()` y recarga la página con el onboarding abierto. El flag `reiniciandoCasa` evita que `persistirSimulacion()` reescriba la casa borrada durante `beforeunload`/`visibilitychange`.
 
@@ -176,6 +176,7 @@ Clave: `smartgota:estado:v3`
 - Comprobar el onboarding de selección directa: muestra solo las tres tarjetas (Compacta, Estándar, Amplia) sin campos de personas ni m³; elegir una crea la casa al instante con habitantes 2 / 4 / 5 y capacidad según el tamaño.
 - Comprobar que la banda de datos muestra `#habitantes` y `#capacidad` como valores fijos (sin inputs), derivados del tipo de vivienda: Compacta 2 / 450 L, Estándar 4 / 750 L, Amplia 5 / 1100 L, y que no aparece ningún indicador de recibo (ni en el resumen, ni en el diagnóstico, ni en el PDF).
 - Comprobar el catálogo: cada tarjeta muestra icono, nombre, flujo base y descripción; la paleta no responde al clic ni al arrastre. Tocar un clon del plano abre la ficha solo-modo (`#ed-modo`).
+- Comprobar el cambio de layout en 1000 px: por encima, `.app-grid` muestra el catálogo a la izquierda (`disp`/`plano` en dos columnas) y cada aparato es una fila; justo por debajo, la paleta vuelve a ser la banda de tres grupos y la columna del plano pasa a ir debajo, sin desbordamiento horizontal.
 - Comprobar que no existen campos de minutos, cargas, descargas ni frecuencia en la ficha del dispositivo y que `#ed-modo` sigue siendo editable.
 - Agregar un segundo aparato del mismo uso baja el uso de ambos y deja igual el total; borrarlo lo devuelve. Añadir un baño secundario completo tampoco cambia el total: solo cambia el reparto entre baños.
 - Comprobar que el plano es inmutable: no hay botones de agregar/borrar piso ni habitación, ni asas de tamaño, ni papelera; el rótulo no responde al doble clic.
@@ -202,7 +203,7 @@ Clave: `smartgota:estado:v3`
 - Comprobar el desfase de fugas: a 3600× y a 21600× la bitácora registra “Anomalía detectada en …” con la hora exacta de inicio del caso (la del `simCasoFuga`, entre 08:00 y 18:00) y no horas después, y la fila del sensor pasa a “Anómalo” sin esperar el throttle.
 - Comprobar el botón de suministro: con el tinaco al 100 % y la simulación sin iniciar o en pausa no brilla (`.modo-suministro--flujo`) ni dice “Suministro · entrando”; solo lo hace con la simulación corriendo y la red entregando agua.
 - Abrir el resumen de sesión: las tres cifras (`.resumen__kpis`) van en tres columnas iguales en escritorio y apiladas a ≤480 px, sin hueco vacío.
-- Si un cambio de CSS/JS no se ve, actualizar el parámetro `?v=49` o limpiar caché del navegador.
+- Si un cambio de CSS/JS no se ve, actualizar el parámetro `?v=50` o limpiar caché del navegador.
 
 ## Gotchas
 

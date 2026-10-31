@@ -2137,16 +2137,39 @@ input:focus {
   gap: var(--e-10);
 }
 
-@media (max-width: 900px) {
+@media (min-width: 1000px) {
   .app-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+    grid-template-areas: 'disp plano';
+  }
+  #paleta {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--e-16);
+  }
+  .paleta__grupo {
+    flex: 0 0 auto;
   }
   .paleta__grupo + .paleta__grupo {
+    padding-top: var(--e-12);
     padding-left: 0;
-    padding-top: var(--e-10);
-    border-left: 0;
     border-top: 1px solid var(--borde);
+    border-left: 0;
   }
+  .paleta__items {
+    flex-direction: column;
+  }
+  .col-disp .item {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--e-10);
+    padding: var(--e-8) calc(var(--e-10) + 20px) var(--e-8) var(--e-10);
+  }
+}
+
+@media (max-width: 900px) {
   .sim__cuerpo {
     grid-template-columns: 1fr;
   }
