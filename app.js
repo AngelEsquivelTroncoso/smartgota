@@ -1660,6 +1660,7 @@ const Sim = {
   raf: 0,
   estado: null,
   ultimoSensores: 0,
+  ultimaHoraNota: -1,
 };
 
 function semillaCortesAleatoria() {
@@ -1777,6 +1778,56 @@ function renderCortes() {
   }
 }
 
+// La nota del interruptor no puede ser un texto fijo: los cortes se sortean por
+// semana, así que la frase que sirve hoy no sirve el jueves. Se calcula desde la
+// semilla y se reescribe solo cuando cambia la hora simulada.
+function notaCortes(horaAbs = Sim.tiempo / 3600) {
+  if (!Sim.cortesActivo) {
+    return 'Cortes desactivados';
+  }
+  const enCurso = corteActivo(horaAbs);
+  if (enCurso) {
+    const fin = String(enCurso.hasta % 24).padStart(2, '0') + ':00';
+    return 'Corte en curso · hasta ' + (enCurso.hasta >= 24 ? 'mañana ' : '') + 'las ' + fin;
+  }
+  const dia = Math.floor(horaAbs / 24);
+  const inicioSemana = Math.floor(dia / 7) * 7;
+  let cortes = 0;
+  let proximo = null;
+  for (let d = inicioSemana; d < inicioSemana + 7; d += 1) {
+    const corte = corteDelDia(d, Sim.semillaCortes);
+    if (!corte) continue;
+    cortes += 1;
+    const desde = d * 24 + corte.desde;
+    if (desde >= horaAbs && (!proximo || desde < proximo.desde)) {
+      proximo = { desde, grave: corte.grave, dia: d };
+    }
+  }
+  if (cortes === 0) {
+    return 'Esta semana no hay cortes';
+  }
+  const cuenta = 'Esta semana: ' + plural(cortes, 'corte', 'cortes');
+  if (!proximo) {
+    return cuenta + ' · ya pasaron';
+  }
+  const dias = proximo.dia - dia;
+  const cuando = dias === 0 ? 'hoy' : dias === 1 ? 'mañana' : 'en ' + plural(dias, 'día', 'días');
+  const hora = String(proximo.desde % 24).padStart(2, '0') + ':00';
+  return cuenta + ' · el próximo, ' + cuando + ' a las ' + hora + (proximo.grave ? ', grave' : '');
+}
+
+function renderNotaCortes(forzar = false) {
+  const el = $('sim-cortes-nota');
+  if (!el) return;
+  const hora = Math.floor(Sim.tiempo / 3600);
+  if (!forzar && hora === Sim.ultimaHoraNota) return;
+  Sim.ultimaHoraNota = hora;
+  const texto = notaCortes(Sim.tiempo / 3600);
+  if (el.textContent !== texto) {
+    el.textContent = texto;
+  }
+}
+
 function marcarFugasReveladas() {
   let cambio = false;
   fugasIniciadas().forEach((id) => {
@@ -1857,6 +1908,7 @@ function cambiarCortes(activo) {
     Estado.simSemillaCortes = Sim.semillaCortes;
   }
   renderCortes();
+  renderNotaCortes(true);
   simRender();
 }
 
@@ -2271,6 +2323,7 @@ function simRender() {
   renderEstadoSesion();
   detectarEventos();
   renderEntradaSuministro();
+  renderNotaCortes();
 
   if (estado !== Sim.estado) {
     Sim.estado = estado;
@@ -2396,6 +2449,7 @@ function simReiniciar() {
   aplicarCasoFuga(Sim.fugasActivo ? casoFugaAleatorio() : Sim.casoFuga);
   $('sim-vel').value = String(Sim.velocidad);
   renderCortes();
+  renderNotaCortes(true);
   simRender();
 }
 
@@ -2520,7 +2574,7 @@ const NOTAS_SIM = {
   fugas:
     'Al activarlas, la simulación esconde una o dos fugas en aparatos al azar. No gotean ' +
     'desde el inicio: cada una empieza a su hora, a mitad de la corrida. Delátalas cuando el ' +
-    'sensor cambie a «Anómalo» y revísalas en el resumen final.',
+    'sensor cambie a Anómalo y revísalas en el resumen final.',
 };
 
 function notaDe(btn) {
@@ -2658,6 +2712,7 @@ function sincronizarSimDesdeEstado() {
   Sim.ultimoSensores = 0;
   $('sim-vel').value = String(Sim.velocidad);
   renderCortes();
+  renderNotaCortes(true);
   renderFugasSim();
   simRender();
 

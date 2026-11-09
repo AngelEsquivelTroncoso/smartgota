@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0b1210" />
     <title>SmartGota — Calcula tu consumo de agua</title>
-    <link rel="stylesheet" href="styles.css?v=68" />
+    <link rel="stylesheet" href="styles.css?v=69" />
   </head>
   <body>
     <!-- Sprite de iconos: una sola familia outline, trazo 1.75, 24×24.
@@ -452,9 +452,7 @@
                       <input type="checkbox" id="sim-cortes-activo" checked />
                       <span>Cortes de agua</span>
                     </label>
-                    <small class="sim__cortes-nota"
-                      >Madrugada 00–05 · un corte de 3 h cada 2 días</small
-                    >
+                    <small class="sim__cortes-nota" id="sim-cortes-nota">Cortes variables</small>
                   </div>
 
                   <div class="sim__seg">
@@ -765,11 +763,15 @@
           <section>
             <h3>Suministro y tinaco</h3>
             <p>
-              La red entrega 6 L/min de 00:00 a 05:00, cuando la casa casi no consume, y el resto
-              del día una presión baja con el 70 % de la demanda diaria: el tinaco baja durante el
-              día y se recupera de madrugada. Cada dos días hay un corte de 3 horas entre las 08:00
-              y las 20:00; mientras dura, el tinaco se pinta ámbar y pasa a ser la reserva de la
-              casa.
+              La red entrega 6 L/min de 00:00 a 05:00, pero solo hasta la meta de esa noche: no
+              todos los días el tinaco termina lleno, y algunas noches no entra nada. El resto del
+              día llega el 70 % de la demanda diaria, repartida en 24 horas: el tinaco baja con el
+              uso y se recupera de madrugada.
+            </p>
+            <p>
+              Los cortes cambian cada semana: puede no haber ninguno, o haber hasta tres, de 2 a 12
+              horas. De vez en cuando toca uno grave, de más de un día, que se lleva la madrugada.
+              Mientras dura, el tinaco se pinta ámbar y pasa a ser la reserva de la casa.
             </p>
           </section>
           <section>
@@ -804,8 +806,8 @@
       defer
       onerror="window.__cdnError('jspdf')"
     ></script>
-    <script src="dominio.js?v=68" defer></script>
-    <script src="app.js?v=68" defer></script>
+    <script src="dominio.js?v=69" defer></script>
+    <script src="app.js?v=69" defer></script>
 
     <div
       class="modal"
