@@ -1,4 +1,4 @@
-/* SmartGota — app.js (v51) */
+/* SmartGota — app.js (v52) */
 'use strict';
 
 // Núcleo de cálculo compartido con dominio.js (script clásico previo)
@@ -15,6 +15,16 @@ const {
   repartirCuota,
   normalizarCasoFuga,
   generarCasoFuga,
+  fugaEnCurso,
+  inicioFugaDesde,
+  evaluarAhorro,
+  UMBRAL_AHORRO,
+  ENTRADA_MADRUGADA_LMIN,
+  enMadrugada,
+  corteDelDia,
+  enCorte,
+  metaNoche,
+  flujoDiaLps,
 } = SmartGotaDominio;
 
 const CONFIG = {
@@ -24,6 +34,22 @@ const CONFIG = {
 
 // Formateador único para cifras y plurales en español
 const NUM_ES = new Intl.NumberFormat('es-MX');
+
+// Iconos del sprite (index.html). Devuelve un <svg><use href="#ico-…"></svg>
+// listo para insertar; el trazo lo aporta la clase .ico del CSS.
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function crearIcono(clave, clase = 'ico') {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', clase);
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  const use = document.createElementNS(SVG_NS, 'use');
+  use.setAttribute('href', '#ico-' + clave);
+  svg.appendChild(use);
+  return svg;
+}
 
 function litrosTexto(n) {
   return NUM_ES.format(Math.round(n)) + ' L';
@@ -63,12 +89,8 @@ function pintarDestacado(el, texto) {
   });
 }
 
-function etiquetaPerfil(perfil) {
-  return { bajo: 'Compacta', medio: 'Estándar', alto: 'Amplia' }[normalizarPerfil(perfil)];
-}
-
 const HABITANTES_SUGERIDOS = { bajo: 2, medio: 4, alto: 5 };
-const CAPACIDAD_POR_PERFIL = { bajo: 450, medio: 750, alto: 1100 };
+const CAPACIDAD_POR_PERFIL = { bajo: 300, medio: 750, alto: 1100 };
 
 // Estado reactivo (Proxy) y persistencia en localStorage
 const CLAVE_LS = 'smartgota:estado:v3';
@@ -154,12 +176,12 @@ const Estado = new Proxy(
     simTiempo: 0,
     simCorriendo: false,
     simVelocidad: 3600,
-    simModoSuministro: 'normal',
-    simSeguirSinAgua: false,
-    simBombaActiva: true,
+    simCortesActivo: true,
+    simSemillaCortes: 7314,
     simConsumoAcumulado: 0,
     simCasoFuga: 4821,
     simFugasActivas: [],
+    simFugaAncla: 0,
     simFugasActivo: true,
     simAguaPerdida: 0,
   },
@@ -187,9 +209,8 @@ function guardarEstado() {
         simTiempo: Estado.simTiempo,
         simCorriendo: Estado.simCorriendo,
         simVelocidad: Estado.simVelocidad,
-        simModoSuministro: Estado.simModoSuministro,
-        simSeguirSinAgua: Estado.simSeguirSinAgua,
-        simBombaActiva: Estado.simBombaActiva,
+        simCortesActivo: Estado.simCortesActivo,
+        simSemillaCortes: Estado.simSemillaCortes,
         simConsumoAcumulado: Estado.simConsumoAcumulado,
         simCasoFuga: Estado.simCasoFuga,
         simFugasActivas: Estado.simFugasActivas,
@@ -223,7 +244,8 @@ function mostrarAvisoLS() {
     document.body.appendChild(aviso);
   }
   aviso.innerHTML =
-    '<strong>⚠️ Almacenamiento no disponible:</strong> Los cambios no se guardarán. Libera espacio en localStorage o desactiva el modo privado.';
+    '<svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ico-aviso"/></svg> ' +
+    '<strong>Almacenamiento no disponible:</strong> Los cambios no se guardarán. Libera espacio en localStorage o desactiva el modo privado.';
 }
 
 function ocultarAvisoLS() {
@@ -267,14 +289,11 @@ function cargarEstado() {
       Estado.simVelocidad = [1, 60, 600, 3600, 21600].includes(Number(g.simVelocidad))
         ? Number(g.simVelocidad)
         : 3600;
-      Estado.simModoSuministro = ['normal', 'tandeo', 'corte'].includes(g.simModoSuministro)
-        ? g.simModoSuministro
-        : 'normal';
-      Estado.simSeguirSinAgua = Boolean(g.simSeguirSinAgua);
-      Estado.simBombaActiva =
-        typeof g.simBombaActiva === 'boolean'
-          ? g.simBombaActiva
-          : g.simBombaModo === 'auto' || g.simBombaEncendida === true;
+      Estado.simCortesActivo = g.simCortesActivo !== false;
+      Estado.simSemillaCortes =
+        Number.isFinite(Number(g.simSemillaCortes)) && Number(g.simSemillaCortes) > 0
+          ? Math.floor(Number(g.simSemillaCortes))
+          : 7314;
       Estado.simConsumoAcumulado = Math.max(0, Number(g.simConsumoAcumulado) || 0);
       Estado.simCasoFuga = normalizarCasoFuga(g.simCasoFuga);
       Estado.simFugasActivo = g.simFugasActivo !== false;
@@ -341,9 +360,8 @@ function cargarEstado() {
       Estado.simTiempo = 0;
       Estado.simCorriendo = false;
       Estado.simVelocidad = 3600;
-      Estado.simModoSuministro = 'normal';
-      Estado.simSeguirSinAgua = false;
-      Estado.simBombaActiva = true;
+      Estado.simCortesActivo = true;
+      Estado.simSemillaCortes = 7314;
       Estado.simConsumoAcumulado = 0;
       Estado.simCasoFuga = 4821;
       Estado.simFugasActivas = [];
@@ -451,9 +469,6 @@ function recalcularUsosPorNivel() {
       refrescarClon(el);
     }
   });
-  if (editandoId) {
-    actualizarCalculoEditor();
-  }
 }
 
 function litrosTotales() {
@@ -499,9 +514,12 @@ function resumenPorSala() {
 }
 
 // Fugas sorpresa de la simulación (independientes del plano estático)
+// El interruptor manda aquí, en la primitiva: plano, bitácora y resumen cuelgan
+// de fugasIniciadas(). Si la condición viviera solo en fugaSimDe() —como
+// antes— la casa no perdía agua pero el clon se resaltaba y la bitácora
+// anunciaba una anomalía con el check apagado.
 function fugaIniciada(id) {
-  const hora = Sim.horaInicioFuga.get(id);
-  return hora === undefined || Sim.tiempo >= hora * 3600;
+  return fugaEnCurso(Sim.fugasActivo, Sim.segInicioFuga.get(id), Sim.tiempo);
 }
 
 function fugaSimDe(d, id, enVivo) {
@@ -653,7 +671,9 @@ function renderAlerta(L, desborde, fugas, pct) {
 
   if (L === 0) {
     titulo = 'Sin consumo registrado';
-    lineas.push('El plano no tiene aparatos con consumo. Reinicia la casa para generar uno nuevo.');
+    lineas.push(
+      'El plano no tiene aparatos con consumo. Cambia tu vivienda para generar uno nuevo.'
+    );
   } else if (desborde) {
     nivel = 'critica';
     titulo = 'Almacenamiento agotado';
@@ -768,6 +788,15 @@ function renderDashboard() {
     desborde = L > cap,
     fugas = resumenFugas();
 
+  // La fuga sorpresa también gasta agua. Antes sólo aparecía en el detalle
+  // («fuga sorpresa detectada»), así que la banda decía 0 L/día y anomalía en
+  // la misma frase. Se suma aquí, en la presentación: resumenFugas() se queda
+  // midiendo el plano porque simFlujos() ya suma la sorpresa por su cuenta.
+  const fugaSorpresa =
+    Sim.fugasReveladas && Sim.fugasActivas.length ? Math.round(fugasSimPorSala(true).total) : 0;
+  const perdidaDia = fugas.litros + fugaSorpresa;
+  const fugasActivas = fugas.cantidad + (fugaSorpresa ? fugasIniciadas().length : 0);
+
   const setCifra = (id, valor, fmt) => {
     const el = $(id);
     if (el) {
@@ -776,7 +805,7 @@ function renderDashboard() {
   };
 
   setCifra('m-litros', L, (n) => NUM_ES.format(Math.round(n)) + ' L');
-  setCifra('m-fugas', fugas.litros, (n) => NUM_ES.format(Math.round(n)) + ' L/día');
+  setCifra('m-fugas', perdidaDia, (n) => NUM_ES.format(Math.round(n)) + ' L/día');
   const porTipo = resumenPorTipo();
   const mayor = Object.entries(porTipo).sort((a, b) => b[1] - a[1])[0];
   const elMayor = $('m-mayor');
@@ -801,16 +830,17 @@ function renderDashboard() {
   }
 
   const fugasDetalle = $('m-fugas-detalle');
-  const hayAlertaFuga =
-    fugas.cantidad > 0 || Boolean(Sim.fugasReveladas && Sim.fugasActivas.length);
+  const hayAlertaFuga = fugasActivas > 0;
   if (fugasDetalle) {
-    const partes = [
-      fugas.cantidad
-        ? fugas.cantidad + (fugas.cantidad === 1 ? ' fuga activa' : ' fugas activas')
-        : 'sin fugas en el plano',
-    ];
-    if (Sim.fugasReveladas && Sim.fugasActivas.length) {
-      partes.push('fuga sorpresa detectada');
+    const partes = [];
+    if (fugas.cantidad) {
+      partes.push(fugas.cantidad === 1 ? '1 fuga activa' : fugas.cantidad + ' fugas activas');
+    }
+    if (fugaSorpresa) {
+      partes.push('sorpresa ' + litrosTexto(fugaSorpresa) + '/día');
+    }
+    if (!partes.length) {
+      partes.push('sin fugas en el plano');
     }
     fugasDetalle.textContent = partes.join(' · ');
   }
@@ -824,7 +854,7 @@ function renderDashboard() {
     }
   }
 
-  renderAlerta(L, desborde, fugas, pct);
+  renderAlerta(L, desborde, { litros: perdidaDia, cantidad: fugasActivas }, pct);
 
   const { porSala, fugaEnSala, porPiso } = resumenPorSala();
 
@@ -852,9 +882,6 @@ function renderDashboard() {
 
   renderTopTipos(porTipo);
 
-  if (editandoId) {
-    actualizarCalculoEditor();
-  }
   actualizarGrafico(porTipo);
   simRender();
   renderSensores();
@@ -1107,7 +1134,7 @@ function renderTabs() {
     t.dataset.piso = p.id;
     t.setAttribute('role', 'tab');
     t.setAttribute('aria-selected', Estado.pisoActivo === p.id ? 'true' : 'false');
-    t.tabIndex = 0;
+    t.tabIndex = Estado.pisoActivo === p.id ? 0 : -1;
     t.innerHTML = '<span class="tab__nombre"></span><small></small>';
     t.querySelector('.tab__nombre').textContent = p.nombre;
     t.addEventListener('click', () => activarPiso(p.id));
@@ -1115,18 +1142,37 @@ function renderTabs() {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         activarPiso(p.id);
+        return;
       }
+      const lista = [...document.querySelectorAll('.tab[data-piso]')];
+      const i = lista.indexOf(t);
+      let destino = null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        destino = (i + 1) % lista.length;
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        destino = (i - 1 + lista.length) % lista.length;
+      } else if (e.key === 'Home') {
+        destino = 0;
+      } else if (e.key === 'End') {
+        destino = lista.length - 1;
+      }
+      if (destino === null) {
+        return;
+      }
+      e.preventDefault();
+      lista[destino].focus();
+      activarPiso(lista[destino].dataset.piso);
     });
     $('tabs').appendChild(t);
   });
 }
 
 function activarPiso(id) {
-  cerrarEditor();
   Estado.pisoActivo = id;
   document.querySelectorAll('.tab[data-piso]').forEach((t) => {
     t.classList.toggle('activa', t.dataset.piso === id);
     t.setAttribute('aria-selected', t.dataset.piso === id ? 'true' : 'false');
+    t.tabIndex = t.dataset.piso === id ? 0 : -1;
   });
   document
     .querySelectorAll('.sala')
@@ -1275,11 +1321,7 @@ function pintarRotuloSala(el, hab) {
     return;
   }
   em.textContent = '';
-  const icono = document.createElement('span');
-  icono.className = 'sala__icono';
-  icono.setAttribute('aria-hidden', 'true');
-  icono.textContent = tipoSala(hab.tipo).icono;
-  em.append(icono, ' ' + hab.nombre);
+  em.append(crearIcono(tipoSala(hab.tipo).icono, 'sala__icono'), hab.nombre);
 }
 
 function montarHabitacion(hab) {
@@ -1325,10 +1367,15 @@ function renderizarGuiaGrid(expandir = false) {
   const m = medidasGrid();
   const ocupadas = filasOcupadasPiso(Estado.pisoActivo);
   const filas = Math.min(MAX_FILAS, Math.max(FILAS_MIN, ocupadas + (expandir ? 1 : 0)));
+  // Solo se dibujan las celdas guía que la vivienda usa: el resto del plano
+  // queda con la retícula de fondo y no como una pared de casillas vacías.
+  const habsPiso = [...Estado.habitaciones.values()].filter((h) => h.piso === Estado.pisoActivo);
+  const columnasUsadas = Math.max(1, ...habsPiso.map((h) => (h.cx || 1) + (h.cs || 1) - 1));
+  const columnas = Math.max(2, Math.min(m.cols, columnasUsadas));
   plano.querySelectorAll('.celda-guia').forEach((g) => g.remove());
   const fragmento = document.createDocumentFragment();
   for (let cy = 1; cy <= filas; cy++) {
-    for (let cx = 1; cx <= m.cols; cx++) {
+    for (let cx = 1; cx <= columnas; cx++) {
       const guia = document.createElement('div');
       guia.className = 'celda-guia';
       guia.style.setProperty('--cx', cx);
@@ -1405,9 +1452,7 @@ function construirPaleta() {
       el.className = 'item';
       el.dataset.tipo = tipo;
       el.innerHTML =
-        '<span class="ico">' +
-        c.icono +
-        '</span><div><b>' +
+        '<div><b>' +
         c.nombre +
         '</b><small>' +
         c.flujo +
@@ -1419,7 +1464,10 @@ function construirPaleta() {
         tipo +
         '" aria-label="Información sobre ' +
         c.nombre +
-        '" aria-haspopup="dialog">?</button>';
+        '" aria-haspopup="dialog">' +
+        '</button>';
+      el.querySelector('.item__info').prepend(crearIcono('ayuda', 'ico ico--xs'));
+      el.prepend(crearIcono(c.icono, 'ico ico--lg'));
       items.appendChild(el);
     });
 
@@ -1438,7 +1486,8 @@ function abrirInfoDispositivo(tipo) {
   }
   infoOrigen = document.activeElement;
 
-  $('modal-info-titulo').textContent = c.icono + ' ' + c.nombre;
+  $('modal-info-titulo').textContent = '';
+  $('modal-info-titulo').append(crearIcono(c.icono, 'ico ico--md'), c.nombre);
   $('modal-info-flujo').textContent =
     'Flujo base: ' + c.flujo + ' ' + c.medida + (c.fijo ? ' · gasto fijo' : '') + '.';
   $('modal-info-msg').textContent = c.descripcion || '';
@@ -1476,7 +1525,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Clones de dispositivos en el plano y editor de modo
+// Clones de dispositivos en el plano
 function posicionar(el, fx, fy) {
   el.style.left = 'calc((100% - ' + CONFIG.tamClon + 'px) * ' + fx.toFixed(4) + ')';
   el.style.top = 'calc((100% - ' + CONFIG.tamClon + 'px) * ' + fy.toFixed(4) + ')';
@@ -1488,34 +1537,23 @@ function refrescarClon(el) {
     litros = litrosDe(d),
     modoInfo = c.modos && d.modo && c.modos[d.modo] ? ' (' + c.modos[d.modo].nombre + ')' : '';
   el.querySelector('small').textContent = Math.round(litros);
-  el.title =
-    c.nombre +
-    modoInfo +
-    ': ' +
-    litros +
-    ' L/día' +
-    (c.fijo ? ' (gasto fijo)' : ' · clic para ver el detalle y cambiar el modo');
+  el.title = c.nombre + modoInfo + ': ' + litros + ' L/día' + (c.fijo ? ' (gasto fijo)' : '');
 }
 
 function crearClon(id, tipo) {
   const el = document.createElement('div');
   el.className = 'clon';
   el.id = id;
-  el.tabIndex = 0;
+  // El plano es inmutable y el modo ya no se edita: el clon no recibe foco con
+  // Tab ni responde al clic. tabindex -1 deja que "Ver en el plano" lo enfoque
+  // como resaltado sin volverlo un control.
+  el.tabIndex = -1;
   if (CATALOGO[tipo].fijo) {
     el.dataset.fijo = '1';
   }
   el.appendChild(document.querySelector('.item[data-tipo="' + tipo + '"] .ico').cloneNode(true));
   el.insertAdjacentHTML('beforeend', '<small></small>');
   refrescarClon(el);
-
-  el.addEventListener('click', () => abrirEditor(id));
-  el.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      abrirEditor(id);
-    }
-  });
   return el;
 }
 
@@ -1547,123 +1585,15 @@ function montarDispositivo(id) {
     return;
   }
   const el = crearClon(id, d.tipo);
-  if (Sim.fugasReveladas && Sim.fugasActivas.includes(id)) {
+  if (Sim.fugasReveladas && Sim.fugasActivo && Sim.fugasActivas.includes(id)) {
     el.classList.add('clon--fuga');
   }
   sala.appendChild(el);
   posicionar(el, d.fx, d.fy);
 }
 
-let editandoId = null;
-
-function abrirEditor(id) {
-  const d = Estado.dispositivos.get(id),
-    c = d && CATALOGO[d.tipo];
-  if (!d || c.fijo) {
-    return cerrarEditor();
-  }
-  cerrarEditor();
-  editandoId = id;
-  $(id).classList.add('editando');
-  $('ed-nombre').textContent = c.icono + ' ' + c.nombre;
-  $('ed-nota').textContent =
-    'Consumo estimado con los promedios de la vivienda ' +
-    etiquetaPerfil(Estado.perfil).toLowerCase() +
-    '. No necesitas medir minutos, cargas ni descargas.';
-
-  const selModo = $('ed-modo'),
-    grupoModo = $('ed-grupo-modo');
-  selModo.innerHTML = '';
-  if (c.modos) {
-    grupoModo.hidden = false;
-    Object.entries(c.modos).forEach(([clave, info]) => {
-      const op = document.createElement('option');
-      op.value = clave;
-      op.textContent = info.nombre;
-      selModo.appendChild(op);
-    });
-    selModo.value = d.modo || c.modoInicial;
-  } else {
-    grupoModo.hidden = true;
-  }
-
-  actualizarCalculoEditor();
-
-  const ed = $('editor'),
-    caja = $(id).getBoundingClientRect();
-  ed.hidden = false;
-  ed.style.left = Math.max(8, Math.min(caja.left, innerWidth - ed.offsetWidth - 12)) + 'px';
-  ed.style.top = Math.max(8, Math.min(caja.bottom + 8, innerHeight - ed.offsetHeight - 12)) + 'px';
-  if (!grupoModo.hidden) {
-    selModo.focus({ preventScroll: true });
-  } else {
-    ed.focus({ preventScroll: true });
-  }
-}
-
-function cerrarEditor() {
-  if (editandoId && $(editandoId)) {
-    $(editandoId).classList.remove('editando');
-  }
-  editandoId = null;
-  $('editor').hidden = true;
-}
-
-function actualizarCalculoEditor() {
-  if (!editandoId) {
-    return;
-  }
-  const d = Estado.dispositivos.get(editandoId);
-  if (!d) {
-    return;
-  }
-  const c = CATALOGO[d.tipo],
-    f = flujoDe(d),
-    esSem = d.frecuencia === 'semana';
-
-  $('ed-calculo').textContent =
-    f +
-    ' ' +
-    c.medida +
-    ' × ' +
-    d.uso_personalizado +
-    (esSem ? '/sem ÷ 7 = ' : '/día = ') +
-    litrosDe(d) +
-    ' L/día';
-}
-
-$('ed-modo').addEventListener('change', (e) => {
-  const d = Estado.dispositivos.get(editandoId);
-  if (!d) {
-    return;
-  }
-  d.modo = e.target.value;
-  refrescarClon($(editandoId));
-  actualizarCalculoEditor();
-});
-
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('#editor, .clon')) {
-    cerrarEditor();
-  }
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    const id = editandoId;
-    cerrarEditor();
-    if (id && $(id)) {
-      $(id).focus({ preventScroll: true });
-    }
-  }
-});
-
 // Simulación del tanque, suministro y sensores en tiempo real
-const LIMITE_BOMBA = 0.2,
-  SEG_DIA = 86400;
-
-const ENTRADA_RED_NORMAL_LMIN = 0.3;
-const ENTRADA_RED_TANDEO_LMIN = 6;
-const CAUDAL_BOMBA_LMIN = 15;
+const SEG_DIA = 86400;
 
 // Pesos horarios w(0..23) cuya suma exacta es 24.00
 const PESOS_HORA = [
@@ -1671,104 +1601,180 @@ const PESOS_HORA = [
   0.65, 1.7, 1.7, 1.7, 0.25, 0.25,
 ];
 
-function enTanda(h) {
-  return (h >= 6 && h < 10) || (h >= 18 && h < 22);
+// Un solo régimen de suministro. De madrugada la red entra a caudal fuerte y
+// llena el tinaco; el resto del día entrega una fracción de la demanda de la
+// casa, así el tinaco baja con el uso y se recupera de noche. Los cortes son
+// una sorpresa por corrida, sorteados con una semilla determinista.
+function demandaBaseDia() {
+  return Math.max(0, litrosTotales() - resumenFugas().litros);
 }
 
-function redDisponible(h = horaActualSim()) {
-  if (Sim.modoSuministro === 'normal') {
-    return true;
-  }
-  if (Sim.modoSuministro === 'tandeo') {
-    return enTanda(h);
-  }
-  return false;
+function hayCorte(horaAbs = Sim.tiempo / 3600) {
+  return Boolean(Sim.cortesActivo) && enCorte(horaAbs, Sim.semillaCortes);
 }
 
-function entradaRedLps(h = horaActualSim()) {
-  if (Sim.modoSuministro === 'normal') {
-    return ENTRADA_RED_NORMAL_LMIN / 60;
+// La noche no llena siempre igual: cada madrugada tiene su meta y la red se
+// cierra al alcanzarla. Sin eso el tinaco volvía a tope cada noche y el 20 %
+// era inalcanzable (un día de consumo no vacía el vaso).
+function metaDeLaNoche(horaAbs = Sim.tiempo / 3600) {
+  return metaNoche(Math.floor(horaAbs / 24), Sim.semillaCortes);
+}
+
+// `horaAbs` son horas absolutas de simulación (con fracción): el día sale de
+// dividir entre 24, no del reloj de la pared.
+function entradaRedLps(horaAbs = Sim.tiempo / 3600, humanoDia = demandaBaseDia()) {
+  if (hayCorte(horaAbs)) {
+    return 0;
   }
-  if (Sim.modoSuministro === 'tandeo' && enTanda(h)) {
-    return ENTRADA_RED_TANDEO_LMIN / 60;
+  if (enMadrugada(horaAbs % 24)) {
+    const cap = Number(Estado.capacidad) || 0;
+    const meta = metaDeLaNoche(horaAbs) * cap;
+    const nivel = Sim.nivel === null ? Infinity : Sim.nivel;
+    return nivel < meta - 0.5 ? ENTRADA_MADRUGADA_LMIN / 60 : 0;
   }
-  return 0;
+  return flujoDiaLps(humanoDia);
 }
 
 const Sim = {
   corriendo: Estado.simCorriendo,
   velocidad: Estado.simVelocidad,
-  modoSuministro: Estado.simModoSuministro || 'normal',
-  seguirSinAgua: Boolean(Estado.simSeguirSinAgua),
-  bombaActiva: Estado.simBombaActiva !== false,
-  bombaEncendida: false,
+  cortesActivo: Estado.simCortesActivo !== false,
+  semillaCortes: Math.max(1, Math.floor(Number(Estado.simSemillaCortes) || 7314)),
   consumoAcumulado: Math.max(0, Number(Estado.simConsumoAcumulado) || 0),
   casoFuga: 4821,
   fugasActivas: [],
-  horaInicioFuga: new Map(),
+  fugaAncla: 0,
+  segInicioFuga: new Map(),
   fugasActivo: true,
   fugasReveladas: false,
   sensoresAvisados: false,
   aguaPerdida: 0,
   bitacora: [],
   bitacoraSucia: false,
-  logPrev: { red: null, bomba: null, vacio: null, pico: null },
+  bitacoraAbierta: false,
+  logPrev: { red: null, vacio: null, pico: null, ahorro: null },
+  ahorroActivo: false,
   nivel: Estado.simNivel !== null ? Estado.simNivel : null,
   tiempo: Estado.simTiempo,
   ultimo: 0,
   raf: 0,
   estado: null,
-  pausaVacio: false,
   ultimoSensores: 0,
 };
 
-function cambiarBomba(encendida) {
-  const valor = Boolean(encendida);
-  if (Sim.bombaEncendida === valor) {
-    return false;
-  }
-  Sim.bombaEncendida = valor;
-  return true;
+function semillaCortesAleatoria() {
+  return 1000 + Math.floor(Math.random() * 900000);
 }
 
-function actualizarBomba(h = horaActualSim()) {
-  if (Sim.nivel === null) {
-    return;
+// Sin prefijo de franja un periodo como "Madrugada" quedaba como una palabra
+// suelta entre datos que sí se explican solos; ahora el estado del suministro
+// se lee de corrido.
+function etiquetaHoraPico(h) {
+  if (h >= 6 && h < 9) {
+    return 'Hora pico matutina (2.6×)';
   }
-  if (!Sim.bombaActiva || !redDisponible(h) || Sim.nivel >= Estado.capacidad) {
-    cambiarBomba(false);
-    return;
+  if (h >= 13 && h < 15) {
+    return 'Hora pico mediodía (2.1×)';
   }
-  if (!Sim.bombaEncendida && Sim.nivel <= Estado.capacidad * LIMITE_BOMBA) {
-    cambiarBomba(true);
+  if (h >= 19 && h < 22) {
+    return 'Hora pico nocturna (1.7×)';
   }
+  return '';
 }
 
-const MENSAJES_SIM = {
-  vacio: {
-    nivel: 'critica',
-    titulo: 'Tanque vacío',
-    texto:
-      'Sin agua en la vivienda. Con la bomba activa se rellena al volver el suministro; también puedes seguir el tiempo sin agua.',
-  },
-  critico: {
-    nivel: 'critica',
-    titulo: 'Nivel bajo: 20 % o menos',
-    texto: 'La bomba automática arranca al 20 % y se detiene al llenar el tinaco.',
-  },
-  sinconsumo: {
-    nivel: '',
-    titulo: 'Sin consumo',
-    texto: 'Sin consumo en la vivienda: el nivel del tanque no cambia con el uso.',
-  },
-};
+// Un corte grave puede empezar ayer y seguir hoy: se busca en los dos días o
+// la etiqueta diría que no hay corte a las 03:00 de uno de 30 h.
+function corteActivo(horaAbs = Sim.tiempo / 3600) {
+  if (!Sim.cortesActivo) {
+    return null;
+  }
+  const dia = Math.floor(horaAbs / 24);
+  for (const d of [dia, dia - 1]) {
+    const corte = corteDelDia(d, Sim.semillaCortes);
+    if (!corte) {
+      continue;
+    }
+    const desde = d * 24 + corte.desde;
+    const hasta = d * 24 + corte.hasta;
+    if (horaAbs >= desde && horaAbs < hasta) {
+      return { ...corte, desde, hasta };
+    }
+  }
+  return null;
+}
 
-function renderModosSuministro() {
-  document.querySelectorAll('[data-modo-suministro]').forEach((btn) => {
-    const activo = btn.dataset.modoSuministro === Sim.modoSuministro;
-    btn.classList.toggle('activo', activo);
-    btn.setAttribute('aria-pressed', activo ? 'true' : 'false');
-  });
+function etiquetaSuministro(horaAbs = Sim.tiempo / 3600) {
+  const h = horaAbs % 24;
+  let base;
+  const corte = corteActivo(horaAbs);
+  if (corte) {
+    const fin = corte.hasta % 24;
+    const sufijo = corte.hasta >= 24 ? 'mañana ' : '';
+    base = 'Corte de agua · hasta ' + sufijo + 'las ' + String(fin).padStart(2, '0') + ':00';
+  } else if (enMadrugada(h)) {
+    const meta = metaDeLaNoche(horaAbs);
+    if (meta <= 0) {
+      base = 'Madrugada · sin entrada';
+    } else {
+      const cap = Number(Estado.capacidad) || 0;
+      const lleno = Sim.nivel !== null && Sim.nivel >= meta * cap - 0.5;
+      base = lleno ? 'Madrugada · tinaco a su nivel' : 'Madrugada · llenando';
+    }
+  } else {
+    base = 'Día · presión baja';
+  }
+  const pico = etiquetaHoraPico(h);
+  return pico ? base + ' · ' + pico : base;
+}
+
+// Horas de tinaco al ritmo actual de la casa; es la cifra que hace útil la
+// alerta cuando la red se corta.
+function reservaHoras() {
+  const porHora = litrosTotales() / 24;
+  if (!(porHora > 0)) {
+    return 0;
+  }
+  return Math.max(1, Math.round(Math.max(0, Sim.nivel || 0) / porHora));
+}
+
+function mensajeSim(estado) {
+  const mensajes = {
+    vacio: {
+      nivel: 'critica',
+      titulo: 'Tanque vacío',
+      texto:
+        'Sin agua en la vivienda. El tinaco se rellena de madrugada o al terminar el corte; los aparatos consumen solo lo que entra.',
+    },
+    critico: {
+      nivel: 'critica',
+      titulo: 'Nivel bajo: 20 % o menos',
+      texto:
+        'Los aparatos reducen su consumo a la mitad mientras el nivel siga así. El tinaco se recupera de madrugada.',
+    },
+    sinentrada: {
+      nivel: 'aviso',
+      titulo: 'No entra agua',
+      texto:
+        'Corte de agua en la red. El tinaco es la reserva: quedan ' +
+        litrosTexto(Math.max(0, Sim.nivel || 0)) +
+        ' (≈ ' +
+        plural(reservaHoras(), 'hora', 'horas') +
+        ' de consumo al ritmo actual).',
+    },
+    sinconsumo: {
+      nivel: '',
+      titulo: 'Sin consumo',
+      texto: 'Sin consumo en la vivienda: el nivel del tanque no cambia con el uso.',
+    },
+  };
+  return mensajes[estado] || null;
+}
+
+function renderCortes() {
+  const toggle = $('sim-cortes-activo');
+  if (toggle) {
+    toggle.checked = Boolean(Sim.cortesActivo);
+  }
 }
 
 function marcarFugasReveladas() {
@@ -1813,13 +1819,22 @@ function casoFugaAleatorio() {
 
 function aplicarCasoFuga(codigo) {
   const caso = generarCasoFuga(codigo, idsElegiblesFuga());
+  // El ancla es el instante en que se arma el caso: la fuga se programa para la
+  // próxima vez que el reloj marque su hora, no para una hora de hoy que ya
+  // pasó. Sin eso, encender el interruptor a las 20:00 revelaba la anomalía al
+  // instante. Se persiste para que recargar no la reprograme al día siguiente.
+  const ancla = Sim.tiempo;
   Sim.casoFuga = caso.codigo;
   Sim.fugasActivas = caso.ids;
-  Sim.horaInicioFuga = caso.horas;
+  Sim.fugaAncla = ancla;
+  Sim.segInicioFuga = new Map(
+    caso.ids.map((id) => [id, inicioFugaDesde(caso.horas.get(id), ancla)])
+  );
   Sim.sensoresAvisados = false;
   limpiarFugasReveladas();
   Estado.simCasoFuga = caso.codigo;
   Estado.simFugasActivas = caso.ids;
+  Estado.simFugaAncla = ancla;
   renderFugasSim();
   simRender();
   return caso;
@@ -1832,93 +1847,21 @@ function renderFugasSim() {
   }
 }
 
-function renderBomba() {
-  const estado = $('sim-bomba-estado');
-  const interruptor = $('sim-bomba-activa');
-  if (!estado || !interruptor) {
-    return;
+function cambiarCortes(activo) {
+  Sim.cortesActivo = Boolean(activo);
+  Estado.simCortesActivo = Sim.cortesActivo;
+  // Encender vuelve a sortear: la sorpresa tiene que ser de esta corrida, no
+  // la que quedó guardada de la anterior.
+  if (Sim.cortesActivo) {
+    Sim.semillaCortes = semillaCortesAleatoria();
+    Estado.simSemillaCortes = Sim.semillaCortes;
   }
-
-  const red = redDisponible();
-  const lleno = Sim.nivel !== null && Sim.nivel >= Estado.capacidad;
-  let etiqueta = 'Apagada';
-  let tono = '';
-
-  if (!Sim.bombaActiva) {
-    etiqueta = 'Apagada';
-  } else if (!red) {
-    etiqueta = 'Esperando suministro';
-    tono = 'aviso';
-  } else if (lleno) {
-    etiqueta = 'Tinaco lleno';
-    tono = 'ok';
-  } else if (Sim.bombaEncendida) {
-    etiqueta = Sim.corriendo ? 'Llenando el tinaco' : 'Llenando · en pausa';
-    tono = 'activa';
-  } else {
-    etiqueta = 'Esperando el 20 %';
-  }
-
-  if (estado.textContent !== etiqueta) {
-    estado.textContent = etiqueta;
-  }
-  if (estado.dataset.estado !== tono) {
-    estado.dataset.estado = tono;
-  }
-  interruptor.checked = Boolean(Sim.bombaActiva);
-
-  const btnVacio = $('sim-encender-bomba');
-  if (btnVacio) {
-    btnVacio.hidden = Sim.bombaActiva;
-    btnVacio.disabled = !red;
-  }
-}
-
-function seleccionarModoSuministro(clave) {
-  if (!['normal', 'tandeo', 'corte'].includes(clave)) {
-    return;
-  }
-  Sim.modoSuministro = clave;
-  Estado.simModoSuministro = clave;
-  Sim.seguirSinAgua = false;
-  Estado.simSeguirSinAgua = false;
-  if (clave !== 'corte') {
-    Sim.pausaVacio = false;
-  }
-  renderModosSuministro();
+  renderCortes();
   simRender();
 }
 
 function horaActualSim() {
   return Math.floor((Sim.tiempo % SEG_DIA) / 3600);
-}
-
-function etiquetaFranja(h) {
-  if (Sim.modoSuministro === 'corte') {
-    return 'Corte de agua (sin entrada)';
-  }
-  if (Sim.modoSuministro === 'tandeo' && !enTanda(h)) {
-    return 'Fuera de tandeo';
-  }
-  if (h < 5) {
-    return 'Madrugada';
-  }
-  if (h < 6) {
-    return 'Inicio de actividad';
-  }
-  if (h < 9) {
-    return 'Hora pico matutina (2.6×)';
-  }
-  if (h >= 13 && h < 15) {
-    return 'Hora pico mediodía (2.1×)';
-  }
-  if (h >= 19 && h < 22) {
-    return 'Hora pico nocturna (1.7×)';
-  }
-  if (h >= 22) {
-    return 'Noche baja';
-  }
-  return 'Horario normal';
 }
 
 function formatoDuracion(s) {
@@ -1950,25 +1893,38 @@ function registrarEvento(texto, tono) {
     Sim.bitacora.shift();
   }
   Sim.bitacoraSucia = true;
+  // La bitácora nace plegada: solo se abre sola la primera vez que hay algo
+  // que contar. Si el usuario la cierra luego, no se le vuelve a abrir.
+  if (!Sim.bitacoraAbierta) {
+    Sim.bitacoraAbierta = true;
+    const panel = $('bitacora');
+    if (panel) {
+      panel.open = true;
+    }
+  }
 }
 
 function detectarEventos() {
-  const red = redDisponible();
-  const bomba = Sim.bombaEncendida;
-  const vacio = Sim.nivel !== null && Sim.nivel <= 0;
-  const pico = esHoraPico(horaActualSim());
   const prev = Sim.logPrev;
+  const red = !hayCorte();
+  // Histéresis: el tinaco se declara vacío en 0 y sólo "recuperado" al pasar
+  // el umbral de ahorro. Sin esa banda muerta, un temblor de un litro en el
+  // borde escribía dos eventos por fotograma.
+  let vacio = prev.vacio === true;
+  if (Sim.nivel !== null) {
+    if (Sim.nivel <= 0) {
+      vacio = true;
+    } else if (Sim.nivel >= Estado.capacidad * UMBRAL_AHORRO) {
+      vacio = false;
+    }
+  }
+  const pico = esHoraPico(horaActualSim());
+  const ahorro = Boolean(Sim.ahorroActivo);
 
   if (prev.red !== null && red !== prev.red) {
     registrarEvento(
       red ? 'Llega agua de la red' : 'Se corta el suministro',
       red ? 'agua' : 'alerta'
-    );
-  }
-  if (prev.bomba !== null && bomba !== prev.bomba) {
-    registrarEvento(
-      bomba ? 'Arranca la bomba del tinaco' : 'Se detiene la bomba',
-      bomba ? 'bomba' : ''
     );
   }
   if (prev.vacio !== null && vacio !== prev.vacio) {
@@ -1980,11 +1936,19 @@ function detectarEventos() {
   if (prev.pico !== null && pico !== prev.pico) {
     registrarEvento(pico ? 'Empieza una hora pico' : 'Termina la hora pico', pico ? 'pico' : '');
   }
+  if (prev.ahorro !== null && ahorro !== prev.ahorro) {
+    registrarEvento(
+      ahorro
+        ? 'Tinaco bajo: los aparatos reducen su consumo a la mitad'
+        : 'El consumo vuelve a la normalidad',
+      ahorro ? 'alerta' : ''
+    );
+  }
 
   prev.red = red;
-  prev.bomba = bomba;
   prev.vacio = vacio;
   prev.pico = pico;
+  prev.ahorro = ahorro;
 }
 
 function renderBitacora() {
@@ -2009,16 +1973,16 @@ function renderBitacora() {
       lista.appendChild(item);
     });
   if (vacio) {
-    vacio.hidden = Sim.bitacora.length > 0;
+    if (Sim.bitacora.length > 0) {
+      vacio.textContent = plural(Sim.bitacora.length, 'evento', 'eventos');
+    } else {
+      vacio.textContent = 'Sin eventos todavía';
+    }
   }
 }
 
 function renderEntradaSuministro() {
-  const activo = document.querySelector('.modo-suministro.activo');
-  const entrando = Boolean(activo) && Sim.corriendo && redDisponible();
-  document.querySelectorAll('.modo-suministro').forEach((btn) => {
-    btn.classList.toggle('modo-suministro--flujo', btn === activo && entrando);
-  });
+  const entrando = Sim.corriendo && !hayCorte();
   const titulo = $('sim-suministro-titulo');
   if (titulo) {
     titulo.textContent = entrando ? 'Suministro · entrando' : 'Suministro';
@@ -2051,15 +2015,23 @@ function simFlujos() {
     fugasSim = fugasSimPorSala(true).total,
     humanoDia = Math.max(0, totalDia - fugasDia),
     h = horaActualSim();
-  const demanda = (fugasDia + fugasSim + humanoDia * PESOS_HORA[h]) / SEG_DIA;
+  // Con el tinaco al 20 % o menos los aparatos de uso humano gastan la mitad.
+  // El factor no toca las fugas: una fuga sigue perdiendo su caudal completo.
+  const ahorro = evaluarAhorro(Sim.nivel, Estado.capacidad, Sim.ahorroActivo);
+  Sim.ahorroActivo = ahorro.activo;
+  const demanda = (fugasDia + fugasSim + humanoDia * PESOS_HORA[h] * ahorro.factor) / SEG_DIA;
 
-  const red = entradaRedLps(h);
-  const bomba = red > 0 && Sim.bombaEncendida ? CAUDAL_BOMBA_LMIN / 60 : 0;
-  const entrada = Math.max(red, bomba);
+  const red = entradaRedLps(Sim.tiempo / 3600, humanoDia);
+  const entrada = red;
 
-  const hayAgua = Sim.nivel === null || Sim.nivel > 0;
-  const consumo = hayAgua ? demanda : 0;
-  const consumoFuga = hayAgua ? fugasSim / SEG_DIA : 0;
+  // Con el tinaco seco no hay colchón: la casa no puede sacar más de lo que
+  // entra. Sin este tope el consumo se apagaba de golpe al tocar 0, la red
+  // volvía a llenar un milímetro y el nivel oscilaba en el borde fotograma a
+  // fotograma: la bitácora alternaba "se vacía / vuelve a tener agua" y la
+  // alerta parpadeaba entre "vacío" y "nivel bajo".
+  const escasez = Sim.nivel !== null && Sim.nivel <= 0 && demanda > entrada ? entrada / demanda : 1;
+  const consumo = demanda * escasez;
+  const consumoFuga = (fugasSim / SEG_DIA) * escasez;
   const neto = entrada - consumo;
 
   if (Sim.nivel !== null && Sim.nivel >= Estado.capacidad && neto >= 0) {
@@ -2071,10 +2043,21 @@ function simFlujos() {
       neto: 0,
       totalDia,
       red,
-      bomba: 0,
+      escasez,
+      ahorro: ahorro.factor,
     };
   }
-  return { demanda, consumo, consumoFuga, entrada, neto, totalDia, red, bomba };
+  return {
+    demanda,
+    consumo,
+    consumoFuga,
+    entrada,
+    neto,
+    totalDia,
+    red,
+    escasez,
+    ahorro: ahorro.factor,
+  };
 }
 
 function esHoraPico(h) {
@@ -2083,7 +2066,11 @@ function esHoraPico(h) {
 
 function flujosPorHabitacion(hora, resumen = resumenPorSala()) {
   const factor = PESOS_HORA[hora] || 0;
-  const hayAgua = Sim.nivel === null || Sim.nivel > 0;
+  // Mismo factor que simFlujos(): sin colchón en el tinaco, cada habitación
+  // recibe la parte proporcional de lo que realmente entró, y con el tinaco
+  // bajo el tramo humano se reduce igual que en el consumo de la casa. Las
+  // fugas no llevan `ahorro` o la suma dejaría de cuadrar.
+  const { escasez, ahorro } = simFlujos();
   const extras = fugasSimPorSala(true);
   const filas = [];
   Estado.habitaciones.forEach((hab, id) => {
@@ -2096,7 +2083,7 @@ function flujosPorHabitacion(hora, resumen = resumenPorSala()) {
       piso: hab.piso,
       fijo,
       humano,
-      flujo: hayAgua ? (fijo + humano * factor) / 1440 : 0,
+      flujo: ((fijo + humano * factor * ahorro) / 1440) * escasez,
       tieneFuga: Boolean(resumen.fugaEnSala[id]) || fugaSim > 0,
       picoNombre: factor > 0 ? dispositivoPicoDeSala(id, factor) : null,
     });
@@ -2190,29 +2177,6 @@ function renderSensores() {
   }
 }
 
-function actualizarAvisoVacio() {
-  const aviso = $('sim-aviso-vacio');
-  if (!aviso) {
-    return;
-  }
-  const mostrar = Boolean(
-    Sim.pausaVacio && Sim.nivel !== null && Sim.nivel <= 0 && !Sim.bombaEncendida
-  );
-  aviso.hidden = !mostrar;
-
-  const texto = $('sim-aviso-texto');
-  if (texto) {
-    texto.textContent = Sim.bombaActiva
-      ? 'La bomba automática arrancará cuando haya suministro. También puedes seguir el tiempo sin agua para observar el corte.'
-      : 'La bomba está apagada. Actívala para recuperar el agua cuando haya suministro, o sigue el tiempo sin agua para observar el corte.';
-  }
-
-  const alerta = $('sim-alerta');
-  if (alerta) {
-    alerta.hidden = mostrar || !MENSAJES_SIM[Sim.estado];
-  }
-}
-
 function renderEstadoSesion() {
   const el = $('sim-estado-sesion');
   if (!el) {
@@ -2221,10 +2185,7 @@ function renderEstadoSesion() {
 
   let texto = 'Listo';
   let estado = '';
-  if (Sim.pausaVacio) {
-    texto = 'Tanque vacío';
-    estado = 'aviso';
-  } else if (Sim.corriendo) {
+  if (Sim.corriendo) {
     texto = 'En marcha';
     estado = 'activa';
   } else if (Sim.tiempo > 0 || Sim.consumoAcumulado > 0) {
@@ -2249,26 +2210,45 @@ function simRender() {
     Sim.nivel = 0;
   }
 
-  actualizarBomba();
   const f = simFlujos(),
-    red = redDisponible(),
-    limite = cap * LIMITE_BOMBA,
+    limite = cap * UMBRAL_AHORRO,
     pct = (Sim.nivel / cap) * 100,
     lmin = (n) => (n * 60).toFixed(2) + ' L/min',
     neto = f.neto * 60;
 
+  // El suministro manda en la lectura: con la red cortada el aviso útil es
+  // "no entra agua", no "no hay consumo".
   const estado =
     Sim.nivel <= 0
       ? 'vacio'
       : Sim.nivel <= limite
         ? 'critico'
-        : f.totalDia === 0
-          ? 'sinconsumo'
-          : 'seguro';
+        : f.red <= 0
+          ? 'sinentrada'
+          : f.totalDia === 0
+            ? 'sinconsumo'
+            : 'seguro';
 
+  const tanqueEl = $('sim-tanque');
   $('sim-agua').style.height = pct + '%';
   $('sim-pct').textContent = Math.round(pct) + '%';
-  $('sim-tanque').classList.toggle('critico', estado === 'critico' || estado === 'vacio');
+  tanqueEl.classList.toggle('critico', estado === 'critico' || estado === 'vacio');
+
+  // Entrada de agua visible: el chorro es simbólico (el grosor habla de la
+  // fuente, no del caudal) y solo se dibuja con la simulación en marcha y el
+  // tinaco sin llenar. Se lee de f.red porque f.entrada vale consumo cuando el
+  // vaso está lleno y afirmaría que entra agua que no entra.
+  tanqueEl.style.setProperty('--nivel', pct + '%');
+  const puedeEntrar = Sim.corriendo && Sim.nivel < cap;
+  const entrando = puedeEntrar && f.red > 0;
+  const fuente = !entrando ? 'ninguna' : enMadrugada(horaActualSim()) ? 'madrugada' : 'red';
+  tanqueEl.dataset.entrada = fuente;
+  // "Sin entrada" es falta de suministro, no "este instante no entra agua": con
+  // el tinaco lleno el agua no entra y eso no es una anomalía. Con un corte el
+  // tinaco se pinta ámbar aunque esté lleno y la simulación esté en pausa.
+  const sinEntrada = Boolean(hayCorte());
+  tanqueEl.classList.toggle('sin-entrada', sinEntrada);
+  $('sim-pildora-entrada').hidden = !sinEntrada;
 
   $('sim-m-nivel').textContent = litrosTexto(Sim.nivel);
   $('sim-m-consumo').textContent = lmin(f.consumo);
@@ -2276,13 +2256,7 @@ function simRender() {
   $('sim-m-balance').textContent =
     (neto > 0 ? '+' : neto < 0 ? '−' : '') + Math.abs(neto).toFixed(2) + ' L/min';
   $('sim-m-tiempo').textContent = formatoReloj(Sim.tiempo);
-  $('sim-m-franja').textContent = Sim.bombaEncendida
-    ? 'Bomba llenando'
-    : Sim.nivel <= 0
-      ? red
-        ? 'Tinaco vacío · red disponible'
-        : 'Sin suministro'
-      : etiquetaFranja(horaActualSim());
+  $('sim-m-franja').textContent = etiquetaSuministro();
   $('sim-m-lleno').textContent =
     Sim.nivel >= cap ? 'Lleno' : f.neto > 0 ? formatoDuracion((cap - Sim.nivel) / f.neto) : '—';
   $('sim-m-limite').textContent =
@@ -2294,15 +2268,13 @@ function simRender() {
   $('sim-m-vacio').textContent =
     Sim.nivel <= 0 ? 'Vacío' : f.neto < 0 ? formatoDuracion(Sim.nivel / -f.neto) : '—';
 
-  renderBomba();
-  actualizarAvisoVacio();
   renderEstadoSesion();
   detectarEventos();
   renderEntradaSuministro();
 
   if (estado !== Sim.estado) {
     Sim.estado = estado;
-    const m = MENSAJES_SIM[estado];
+    const m = mensajeSim(estado);
     const alerta = $('sim-alerta');
     alerta.hidden = !m;
     alerta.className = 'alerta ' + (m ? m.nivel : '');
@@ -2329,7 +2301,6 @@ function simPaso(t) {
   while (restante > 0) {
     const segEnHora = 3600 - (Sim.tiempo % 3600);
     const paso = Math.min(restante, segEnHora > 0 ? segEnHora : 3600);
-    actualizarBomba();
     const f = simFlujos();
     const horaAntes = Math.floor(Sim.tiempo / 3600);
     const fugasAntes = fugasIniciadas().length;
@@ -2345,18 +2316,8 @@ function simPaso(t) {
     if (fugasAhora !== fugasAntes || Math.floor(Sim.tiempo / 3600) !== horaAntes) {
       Sim.ultimoSensores = 0;
     }
-    if (Sim.seguirSinAgua && Sim.nivel > 0 && f.entrada > 0) {
-      Sim.seguirSinAgua = false;
-      Estado.simSeguirSinAgua = false;
-    }
-    if (Sim.nivel <= 0 && f.entrada <= 0) {
-      if (!Sim.seguirSinAgua) {
-        simPausar();
-        Sim.pausaVacio = true;
-        $('sim-finalizar').hidden = false;
-        break;
-      }
-    }
+    // El tanque seco no detiene la corrida: `escasez` ya limita el consumo a
+    // lo que entra, y la idea es justamente poder ver qué pasa sin agua.
   }
 
   simRender();
@@ -2365,38 +2326,30 @@ function simPaso(t) {
   }
 }
 
+// El botón lleva icono y etiqueta en nodos separados: escribir textContent
+// borraría el SVG del sprite.
+function pintarBotonPlay(corriendo) {
+  $('sim-play-icono').setAttribute('href', corriendo ? '#ico-pausa' : '#ico-play');
+  $('sim-play-texto').textContent = corriendo ? 'Pausar' : 'Iniciar';
+}
+
 function simIniciar() {
   if (Sim.nivel === null || Sim.nivel > Estado.capacidad) {
     Sim.nivel = Estado.capacidad;
   }
-  actualizarBomba();
-  if (Sim.nivel <= 0 && !Sim.seguirSinAgua) {
-    const f = simFlujos();
-    if (f.entrada <= 0) {
-      Sim.corriendo = false;
-      Estado.simCorriendo = false;
-      Sim.pausaVacio = true;
-      $('sim-play').textContent = '▶ Iniciar';
-      $('sim-finalizar').hidden = true;
-      simRender();
-      return;
-    }
-  }
-  Sim.pausaVacio = false;
   Sim.corriendo = true;
   Estado.simCorriendo = true;
   Sim.ultimo = performance.now();
   Sim.logPrev = {
-    red: redDisponible(),
-    bomba: Sim.bombaEncendida,
+    red: !hayCorte(),
     vacio: Sim.nivel !== null && Sim.nivel <= 0,
     pico: esHoraPico(horaActualSim()),
+    ahorro: Boolean(Sim.ahorroActivo),
   };
   registrarEvento('Comienza la simulación', '');
   renderBitacora();
-  $('sim-play').textContent = '⏸ Pausar';
+  pintarBotonPlay(true);
   $('sim-finalizar').hidden = false;
-  renderBomba();
   renderEstadoSesion();
   Sim.raf = requestAnimationFrame(simPaso);
 }
@@ -2407,9 +2360,8 @@ function simPausar() {
   Estado.simNivel = Sim.nivel;
   Estado.simTiempo = Sim.tiempo;
   cancelAnimationFrame(Sim.raf);
-  $('sim-play').textContent = '▶ Iniciar';
+  pintarBotonPlay(false);
   $('sim-finalizar').hidden = true;
-  renderBomba();
   renderEstadoSesion();
 }
 
@@ -2419,26 +2371,31 @@ function simReiniciar() {
   Estado.simNivel = Estado.capacidad;
   Sim.tiempo = 0;
   Estado.simTiempo = 0;
-  Sim.seguirSinAgua = false;
-  Estado.simSeguirSinAgua = false;
-  cambiarBomba(false);
   Sim.consumoAcumulado = 0;
   Estado.simConsumoAcumulado = 0;
-  Sim.pausaVacio = false;
   Sim.estado = null;
   Sim.velocidad = Estado.simVelocidad;
-  Sim.modoSuministro = Estado.simModoSuministro;
-  Sim.bombaActiva = Estado.simBombaActiva !== false;
+  Sim.cortesActivo = Estado.simCortesActivo !== false;
+  if (Sim.cortesActivo) {
+    Sim.semillaCortes = semillaCortesAleatoria();
+    Estado.simSemillaCortes = Sim.semillaCortes;
+  }
   Sim.aguaPerdida = 0;
   Estado.simAguaPerdida = 0;
   Sim.sensoresAvisados = false;
+  Sim.ahorroActivo = false;
   Sim.bitacora = [];
   Sim.bitacoraSucia = true;
-  Sim.logPrev = { red: null, bomba: null, vacio: null, pico: null };
+  Sim.bitacoraAbierta = false;
+  const panelBitacora = $('bitacora');
+  if (panelBitacora) {
+    panelBitacora.open = false;
+  }
+  Sim.logPrev = { red: null, vacio: null, pico: null, ahorro: null };
   limpiarFugasReveladas();
   aplicarCasoFuga(Sim.fugasActivo ? casoFugaAleatorio() : Sim.casoFuga);
   $('sim-vel').value = String(Sim.velocidad);
-  renderModosSuministro();
+  renderCortes();
   simRender();
 }
 
@@ -2554,12 +2511,20 @@ $('sim-vel').addEventListener('change', (e) => {
   Sim.velocidad = Number(e.target.value);
   Estado.simVelocidad = Sim.velocidad;
 });
-document.querySelectorAll('[data-modo-suministro]').forEach((btn) => {
-  btn.addEventListener('click', () => seleccionarModoSuministro(btn.dataset.modoSuministro));
-});
+$('sim-cortes-activo').addEventListener('change', (e) => cambiarCortes(e.target.checked));
+
+// Hay una sola nota en la banda: los dos botones "?" escriben en el mismo
+// nodo (aria-controls="sim-nota"), así que nunca pueden quedar las dos
+// abiertas ni empujar el layout dos veces.
+const NOTAS_SIM = {
+  fugas:
+    'Al activarlas, la simulación esconde una o dos fugas en aparatos al azar. No gotean ' +
+    'desde el inicio: cada una empieza a su hora, a mitad de la corrida. Delátalas cuando el ' +
+    'sensor cambie a «Anómalo» y revísalas en el resumen final.',
+};
 
 function notaDe(btn) {
-  return btn && btn.dataset.nota ? $(btn.dataset.nota) : null;
+  return btn && btn.dataset.nota ? $('sim-nota') : null;
 }
 
 function cerrarNotasSim(excepto) {
@@ -2588,18 +2553,23 @@ $('sim-fugas-activo').addEventListener('change', (e) => {
 document.querySelectorAll('.sim__ayuda-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
     const nota = notaDe(btn);
-    if (!nota) {
+    const texto = NOTAS_SIM[btn.dataset.nota] || '';
+    if (!nota || !texto) {
       return;
     }
-    const abrir = nota.hidden;
-    cerrarNotasSim(nota);
-    nota.hidden = !abrir;
-    btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    const yaAbierta = btn.getAttribute('aria-expanded') === 'true';
+    cerrarNotasSim();
+    if (yaAbierta) {
+      return;
+    }
+    nota.textContent = texto;
+    nota.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
   });
 });
 
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('.sim__ayuda-btn') && !e.target.closest('.sim__control-nota')) {
+  if (!e.target.closest('.sim__ayuda-btn') && !e.target.closest('.sim__nota')) {
     cerrarNotasSim();
   }
 });
@@ -2607,40 +2577,6 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     cerrarNotasSim();
-  }
-});
-
-$('sim-bomba-activa').addEventListener('change', (e) => {
-  Sim.bombaActiva = e.target.checked;
-  Estado.simBombaActiva = Sim.bombaActiva;
-  if (Sim.bombaActiva) {
-    Sim.pausaVacio = false;
-    actualizarBomba();
-  } else {
-    cambiarBomba(false);
-  }
-  simRender();
-});
-
-$('sim-seguir-sin-agua').addEventListener('click', () => {
-  Sim.seguirSinAgua = true;
-  Estado.simSeguirSinAgua = true;
-  Sim.pausaVacio = false;
-  simIniciar();
-});
-
-$('sim-encender-bomba').addEventListener('click', () => {
-  if (!redDisponible()) {
-    return;
-  }
-  Sim.bombaActiva = true;
-  Estado.simBombaActiva = true;
-  Sim.pausaVacio = false;
-  actualizarBomba();
-  if (!Sim.corriendo) {
-    simIniciar();
-  } else {
-    simRender();
   }
 });
 
@@ -2652,7 +2588,10 @@ window.__cdnError = (lib) => {
       : 'La exportación a PDF no está disponible (jspdf no cargó). Revisa tu conexión a internet.';
   if (alerta) {
     alerta.className = 'alerta critica';
-    alerta.innerHTML = '<strong>⚠️ Recurso no disponible</strong><br>' + mensaje;
+    alerta.innerHTML =
+      '<svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ico-aviso"/></svg> ' +
+      '<strong>Recurso no disponible</strong><br>' +
+      mensaje;
   }
   console.warn('SmartGota: CDN falló:', lib);
 };
@@ -2673,11 +2612,12 @@ function persistirSimulacion() {
   Estado.simNivel = Sim.nivel;
   Estado.simTiempo = Sim.tiempo;
   Estado.simCorriendo = Sim.corriendo;
-  Estado.simSeguirSinAgua = Sim.seguirSinAgua;
-  Estado.simBombaActiva = Sim.bombaActiva;
+  Estado.simCortesActivo = Sim.cortesActivo;
+  Estado.simSemillaCortes = Sim.semillaCortes;
   Estado.simConsumoAcumulado = Sim.consumoAcumulado;
   Estado.simCasoFuga = Sim.casoFuga;
   Estado.simFugasActivas = Sim.fugasActivas.slice();
+  Estado.simFugaAncla = Sim.fugaAncla;
   Estado.simFugasActivo = Sim.fugasActivo;
   Estado.simAguaPerdida = Sim.aguaPerdida;
   pausado = estabaPausado;
@@ -2693,10 +2633,8 @@ document.addEventListener('visibilitychange', () => {
 
 function sincronizarSimDesdeEstado() {
   Sim.velocidad = Estado.simVelocidad;
-  Sim.modoSuministro = Estado.simModoSuministro || 'normal';
-  Sim.seguirSinAgua = Boolean(Estado.simSeguirSinAgua);
-  Sim.bombaActiva = Estado.simBombaActiva !== false;
-  Sim.bombaEncendida = false;
+  Sim.cortesActivo = Estado.simCortesActivo !== false;
+  Sim.semillaCortes = Math.max(1, Math.floor(Number(Estado.simSemillaCortes) || 7314));
   Sim.consumoAcumulado = Math.max(0, Number(Estado.simConsumoAcumulado) || 0);
   Sim.casoFuga = normalizarCasoFuga(Estado.simCasoFuga);
   Sim.fugasActivo = Estado.simFugasActivo !== false;
@@ -2704,7 +2642,13 @@ function sincronizarSimDesdeEstado() {
     ? Estado.simFugasActivas.filter((id) => Estado.dispositivos.has(id))
     : [];
   const casoGuardado = generarCasoFuga(Sim.casoFuga, idsElegiblesFuga());
-  Sim.horaInicioFuga = new Map(Sim.fugasActivas.map((id) => [id, casoGuardado.horas.get(id) ?? 0]));
+  // Sin ancla guardada (estados anteriores a este campo) vale 0, que deja las
+  // horas del caso tal como estaban: el comportamiento viejo.
+  const ancla = Math.max(0, Number(Estado.simFugaAncla) || 0);
+  Sim.fugaAncla = ancla;
+  Sim.segInicioFuga = new Map(
+    Sim.fugasActivas.map((id) => [id, inicioFugaDesde(casoGuardado.horas.get(id), ancla)])
+  );
   Sim.aguaPerdida = Math.max(0, Number(Estado.simAguaPerdida) || 0);
   Sim.nivel =
     Estado.simNivel !== null ? Math.min(Estado.simNivel, Estado.capacidad) : Estado.capacidad;
@@ -2712,12 +2656,9 @@ function sincronizarSimDesdeEstado() {
   Sim.estado = null;
   Sim.estadoSensores = null;
   Sim.ultimoSensores = 0;
-  Sim.pausaVacio = Sim.nivel <= 0 && !Sim.seguirSinAgua;
-
   $('sim-vel').value = String(Sim.velocidad);
-  renderModosSuministro();
+  renderCortes();
   renderFugasSim();
-  actualizarBomba();
   simRender();
 
   if (Estado.simCorriendo) {
@@ -2741,6 +2682,10 @@ function abrirOnboarding() {
     return;
   }
   modal.hidden = false;
+  const aviso = $('onboarding-aviso');
+  if (aviso) {
+    aviso.hidden = !Estado.onboardingCompletado;
+  }
   const primera = modal.querySelector('.perfil-opcion');
   if (primera) {
     primera.focus();
@@ -2755,9 +2700,8 @@ function crearCasa(datos) {
     Estado.perfil = datos.perfil;
     Estado.capacidad = CAPACIDAD_POR_PERFIL[datos.perfil] || 750;
     Estado.onboardingCompletado = true;
-    Estado.simModoSuministro = 'normal';
+    Estado.simCortesActivo = true;
     Estado.simVelocidad = 3600;
-    Estado.simBombaActiva = true;
     Estado.simConsumoAcumulado = 0;
     generarPlantilla(datos.perfil, datos.habitantes);
     recalcularUsosPorNivel();
@@ -2781,7 +2725,6 @@ function crearCasa(datos) {
 }
 
 function vaciarCasa() {
-  cerrarEditor();
   Estado.pisos.clear();
   Estado.habitaciones.clear();
   Estado.dispositivos.clear();
@@ -2838,6 +2781,19 @@ function generarPlantilla(perfil, n) {
       1,
       [{ tipo: 'lavabo', uso: 2 }],
       'cocina',
+      'principal'
+    );
+    // La lavadora es el aparato que faltaba: sin ella la casa compacta gastaba
+    // 92 L por persona y su tinaco daba 2.4 días de reserva, así que el nivel
+    // nunca bajaba del 50 %. Con lavandería y un tinaco de 300 L la autonomía
+    // queda en ~1.5 días, comparable a la vivienda Estándar.
+    crearSalaConDispositivos(
+      'Lavandería',
+      pb,
+      3,
+      1,
+      [{ tipo: 'lavadora', uso: 3, frecuencia: 'semana' }],
+      'lavanderia',
       'principal'
     );
     return;
@@ -2962,10 +2918,10 @@ function generarPlantilla(perfil, n) {
   );
 }
 
-async function reiniciarCasa() {
+async function cambiarVivienda() {
   const ok = await modalConfirm(
-    'Se borrarán el plano, los dispositivos y tus respuestas. Esta acción no se puede deshacer.',
-    'Reiniciar casa'
+    'Vas a elegir otra vivienda. Se borrarán el plano, los dispositivos y la simulación actual. Esta acción no se puede deshacer.',
+    'Cambiar mi vivienda'
   );
   if (!ok) {
     return;
@@ -3010,6 +2966,7 @@ function mostrarVistaAvanzada(nombre) {
     const activa = tab.dataset.vista === vistaAvanzada;
     tab.classList.toggle('activa', activa);
     tab.setAttribute('aria-selected', activa ? 'true' : 'false');
+    tab.tabIndex = activa ? 0 : -1;
   });
   document.querySelectorAll('.vista').forEach((v) => {
     v.classList.remove('activa');
@@ -3032,6 +2989,31 @@ function mostrarVistaAvanzada(nombre) {
     requestAnimationFrame(() => simRender());
   }
 }
+
+// Navegación por flechas entre las dos vistas (patrón tablist del ARIA APG).
+$('vistas-avanzadas').addEventListener('keydown', (evento) => {
+  const tabs = [...document.querySelectorAll('.vista-tab')];
+  const actual = tabs.indexOf(document.activeElement);
+  if (actual < 0) {
+    return;
+  }
+  let destino = null;
+  if (evento.key === 'ArrowRight' || evento.key === 'ArrowDown') {
+    destino = (actual + 1) % tabs.length;
+  } else if (evento.key === 'ArrowLeft' || evento.key === 'ArrowUp') {
+    destino = (actual - 1 + tabs.length) % tabs.length;
+  } else if (evento.key === 'Home') {
+    destino = 0;
+  } else if (evento.key === 'End') {
+    destino = tabs.length - 1;
+  }
+  if (destino === null) {
+    return;
+  }
+  evento.preventDefault();
+  tabs[destino].focus();
+  mostrarVistaAvanzada(tabs[destino].dataset.vista);
+});
 
 function trapaFoco(contenedor, evento) {
   const focos = [
@@ -3069,7 +3051,7 @@ $('modal-onboarding').addEventListener('keydown', (e) => {
     trapaFoco($('modal-onboarding'), e);
   }
 });
-$('btn-reiniciar-casa').addEventListener('click', reiniciarCasa);
+$('btn-cambiar-casa').addEventListener('click', cambiarVivienda);
 
 // Arranque principal
 construirPaleta();
@@ -3120,40 +3102,6 @@ $('modal-ayuda').addEventListener('click', (e) => {
     cerrarAyuda();
   }
 });
-
-const btnAcciones = $('btn-acciones');
-const menuAcciones = $('menu-acciones');
-
-function cerrarMenuAcciones() {
-  if (!btnAcciones || !menuAcciones) {
-    return;
-  }
-  menuAcciones.hidden = true;
-  btnAcciones.setAttribute('aria-expanded', 'false');
-}
-
-if (btnAcciones && menuAcciones) {
-  btnAcciones.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const abrir = menuAcciones.hidden;
-    menuAcciones.hidden = !abrir;
-    btnAcciones.setAttribute('aria-expanded', abrir ? 'true' : 'false');
-  });
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.menu-acciones')) {
-      cerrarMenuAcciones();
-    }
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !menuAcciones.hidden) {
-      cerrarMenuAcciones();
-      btnAcciones.focus();
-    }
-  });
-  menuAcciones.querySelectorAll('button').forEach((btn) => {
-    btn.addEventListener('click', cerrarMenuAcciones);
-  });
-}
 
 $('btn-ir-simulador').addEventListener('click', () => mostrarVistaAvanzada('simulador'));
 

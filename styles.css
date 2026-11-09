@@ -1,8 +1,17 @@
 /* ==========================================================================
    SmartGota — hoja de estilos única
    --------------------------------------------------------------------------
-   Un solo sistema de diseño optimizado y reducido a menos de 1000 líneas.
+   Un solo sistema de diseño, dividido en secciones numeradas. Antes de tocar
+   un bloque, busca su número para no cruzar de módulo.
+
+   OJO: un comentario CSS sin cerrar se traga todas las reglas siguientes hasta
+   el próximo cierre y no da error. Al borrar bloques, verifica que el número
+   de aperturas y cierres coincida.
    ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Tokens
+   -------------------------------------------------------------------------- */
 
 :root {
   --texto: #e9f2ed;
@@ -37,6 +46,7 @@
   --t-lg: 1.05rem;
   --t-xl: 1.3rem;
   --t-2xl: 1.6rem;
+  --t-3xl: 2.15rem;
   --r-6: 6px;
   --r-8: 8px;
   --r-10: 10px;
@@ -44,7 +54,44 @@
   --r-14: 14px;
   --r-16: 16px;
   --r: var(--r-14);
+
+  /* Tipografía. El proyecto no carga fuentes web a propósito: la app debe
+     funcionar sin conexión (solo el gráfico y el PDF usan CDN). La pila es del
+     sistema y tabular donde importa. Si algún día se autoaloja una variable,
+     se cambia SOLO este token. */
+  --fuente:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Escala semántica de encabezados. --h2 conserva el tamaño histórico de los
+     encabezados de tarjeta para no mover el alto medido del resumen a 720 px. */
+  --h1: clamp(1.35rem, 1.15rem + 0.8vw, 1.75rem);
+  --h2: var(--t-lg);
+  --h3: var(--t-md);
+
+  /* Iconos. Fase 2 sustituye los emojis por SVG; los tamaños ya están aquí. */
+  --ico-sm: 16px;
+  --ico-md: 20px;
+  --ico-lg: 24px;
+
+  /* Movimiento compartido. */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  /* Borde de controles. --borde queda para superficies decorativas (1.46:1
+     basta bajo la sombra); este supera 3:1 en las tres superficies y se usa en
+     campos, interruptores y botones secundarios. */
+  --borde-fuerte: #547868;
+
+  /* Colores semánticos: nombran el significado, no el matiz. */
+  --ok: var(--esm);
+  --aviso: var(--ambar);
+  --peligro: var(--rojo);
 }
+
+/* --------------------------------------------------------------------------
+   2. Reset y base
+   -------------------------------------------------------------------------- */
 
 *,
 *::before,
@@ -72,7 +119,7 @@ body {
   margin: 0;
   padding: var(--e-16) var(--e-20) var(--e-40);
   min-height: 100vh;
-  font-family: 'Inter', 'Segoe UI', Roboto, Arial, sans-serif;
+  font-family: var(--fuente);
   font-size: 15px;
   line-height: 1.5;
   color: var(--texto);
@@ -81,6 +128,10 @@ body {
     radial-gradient(760px 440px at 94% -12%, rgba(56, 189, 248, 0.08), transparent 62%),
     var(--fondo);
 }
+
+/* --------------------------------------------------------------------------
+   3. Cabecera y marca
+   -------------------------------------------------------------------------- */
 
 header,
 .app,
@@ -110,15 +161,18 @@ header,
   place-items: center;
   width: 38px;
   height: 38px;
-  font-size: var(--t-lg);
+  color: var(--esm);
   background: rgba(52, 211, 153, 0.12);
   border: 1px solid rgba(52, 211, 153, 0.28);
   border-radius: var(--r-12);
 }
 
-.marca strong {
+.marca h1 {
   display: block;
-  font-size: var(--t-lg);
+  margin: 0;
+  font-size: var(--h1);
+  font-weight: 700;
+  line-height: 1.15;
   letter-spacing: -0.02em;
 }
 
@@ -126,6 +180,7 @@ header,
   display: block;
   color: var(--tenue);
   font-size: var(--t-xs);
+  line-height: 1.25;
 }
 
 .btn-ayuda {
@@ -141,9 +196,9 @@ header,
   border-radius: var(--r-10);
   cursor: pointer;
   transition:
-    background 0.15s,
-    border-color 0.15s,
-    color 0.15s;
+    background var(--dur-fast),
+    border-color var(--dur-fast),
+    color var(--dur-fast);
 }
 
 .btn-ayuda:hover {
@@ -152,9 +207,13 @@ header,
   border-color: var(--borde);
 }
 
+/* --------------------------------------------------------------------------
+   4. Tipografía y utilidades
+   -------------------------------------------------------------------------- */
+
 h2 {
   margin: 0 0 12px;
-  font-size: var(--t-lg);
+  font-size: var(--h2);
   font-weight: 700;
   color: var(--texto);
   letter-spacing: -0.01em;
@@ -200,7 +259,7 @@ input[type='number'] {
   font-size: var(--t-sm);
   color: var(--texto);
   background: var(--fondo);
-  border: 1px solid var(--borde);
+  border: 1px solid var(--borde-fuerte);
   border-radius: var(--r-10);
 }
 
@@ -215,6 +274,51 @@ input:focus {
   box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
 }
 
+/* Iconos del sprite. El trazo vive aquí y se hereda hacia el <use>: una sola
+   familia outline, sin depender de la fuente del sistema. */
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.ico {
+  flex: none;
+  width: var(--ico-md);
+  height: var(--ico-md);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: middle;
+}
+
+.ico--xs {
+  width: 12px;
+  height: 12px;
+}
+
+.ico--sm {
+  width: var(--ico-sm);
+  height: var(--ico-sm);
+}
+
+.ico--md {
+  width: var(--ico-md);
+  height: var(--ico-md);
+}
+
+.ico--lg {
+  width: var(--ico-lg);
+  height: var(--ico-lg);
+}
+
+/* --------------------------------------------------------------------------
+   5. Foco y navegación
+   -------------------------------------------------------------------------- */
+
 :focus-visible {
   outline: 3px solid var(--esm);
   outline-offset: 3px;
@@ -226,7 +330,9 @@ input:focus {
 
 .item:focus-visible,
 .btn-sim:focus-visible,
-.tab:focus-visible {
+.tab:focus-visible,
+.vista-tab:focus-visible,
+.clon:focus {
   outline: 3px solid var(--esm);
   outline-offset: 2px;
   z-index: 10;
@@ -259,8 +365,8 @@ input:focus {
   cursor: pointer;
   user-select: none;
   transition:
-    background 0.15s,
-    color 0.15s;
+    background var(--dur-fast),
+    color var(--dur-fast);
   white-space: nowrap;
 }
 
@@ -282,6 +388,10 @@ input:focus {
   display: block;
 }
 
+/* --------------------------------------------------------------------------
+   6. Tarjetas y rejilla principal
+   -------------------------------------------------------------------------- */
+
 .tarjeta {
   min-width: 0;
   background:
@@ -292,43 +402,15 @@ input:focus {
   box-shadow: var(--sombra);
 }
 
+/* Una sola columna: el plano manda y el diagnóstico va debajo. */
 .app-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas:
-    'disp'
-    'plano';
   gap: var(--e-12);
   align-items: start;
 }
 
-.col-disp {
-  grid-area: disp;
-  padding: var(--e-12) var(--e-16);
-}
-
-.col-disp .seccion-cab {
-  align-items: baseline;
-  margin-bottom: var(--e-10);
-}
-
-.col-disp .seccion-cab > div {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--e-4) var(--e-10);
-}
-
-.col-disp .seccion-cab h2 {
-  font-size: var(--t-md);
-}
-
-.col-disp .seccion-cab .pista {
-  margin: 0;
-}
-
 .col-plano {
-  grid-area: plano;
   display: flex;
   flex-direction: column;
   padding: var(--e-16);
@@ -342,6 +424,10 @@ input:focus {
   grid-area: sim;
   padding: var(--e-16);
 }
+
+/* --------------------------------------------------------------------------
+   7. Catálogo de aparatos
+   -------------------------------------------------------------------------- */
 
 #paleta {
   display: flex;
@@ -371,23 +457,69 @@ input:focus {
 
 .paleta__items {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--e-4);
+  flex-direction: column;
+  gap: var(--e-6);
 }
 
-.item {
-  position: relative;
-  flex: 1 1 160px;
-  min-width: 0;
+/* Catálogo plegado al pie del plano. */
+.catalogo {
+  margin-top: var(--e-14);
+  padding-top: var(--e-10);
+  border-top: 1px solid var(--borde);
+}
+
+.catalogo > summary {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--e-4);
-  padding: var(--e-10);
+  align-items: baseline;
+  gap: var(--e-8);
+  padding: var(--e-4) 0;
+  color: var(--texto);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.catalogo > summary::-webkit-details-marker {
+  display: none;
+}
+
+.catalogo > summary::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-right: 1.75px solid currentColor;
+  border-bottom: 1.75px solid currentColor;
+  transform: rotate(-45deg) translate(-1px, -1px);
+  transition: transform var(--dur-base) var(--ease);
+}
+
+.catalogo[open] > summary::before {
+  transform: rotate(45deg) translate(-1px, -3px);
+}
+
+.catalogo__pista {
+  color: var(--tenue);
+  font-size: var(--t-xs);
+  font-weight: 400;
+}
+
+.catalogo #paleta {
+  margin-top: var(--e-10);
+}
+
+/* Cada aparato es una fila: icono, nombre y flujo, más el botón de info. */
+.item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--e-10);
+  padding: var(--e-8) var(--e-10);
   background: var(--superficie-2);
   border: 1px solid var(--borde);
   border-radius: var(--r-10);
-  cursor: default;
   user-select: none;
 }
 
@@ -396,11 +528,6 @@ input:focus {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-}
-
-.ico {
-  font-size: var(--t-lg);
-  line-height: 1;
 }
 
 .item b {
@@ -413,19 +540,16 @@ input:focus {
 }
 
 .item__info {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   display: grid;
+  flex: none;
   place-items: center;
+  padding: 0;
   border: 1px solid var(--borde);
   border-radius: 50%;
-  background: var(--superficie-2);
-  color: var(--texto);
-  font-size: var(--t-micro);
-  line-height: 1;
+  background: transparent;
+  color: var(--tenue);
   cursor: pointer;
 }
 
@@ -434,6 +558,10 @@ input:focus {
   border-color: var(--esm);
   color: var(--esm);
 }
+
+/* --------------------------------------------------------------------------
+   8. Plano y habitaciones
+   -------------------------------------------------------------------------- */
 
 .tabs {
   display: flex;
@@ -463,9 +591,9 @@ input:focus {
   cursor: pointer;
   user-select: none;
   transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s;
+    background var(--dur-fast),
+    color var(--dur-fast),
+    border-color var(--dur-fast);
 }
 
 .tab:hover {
@@ -594,10 +722,19 @@ input:focus {
 }
 
 .sala__rotulo em {
+  display: flex;
+  align-items: center;
+  gap: var(--e-4);
   font-style: normal;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sala__icono {
+  flex: none;
+  width: 13px;
+  height: 13px;
 }
 
 .sala__rotulo b {
@@ -611,12 +748,16 @@ input:focus {
   height: 44px;
   display: grid;
   place-items: center;
-  font-size: var(--t-2xl);
-  cursor: pointer;
+  cursor: default;
   background: rgba(16, 185, 129, 0.18);
   border: 1px solid rgba(52, 211, 153, 0.5);
   border-radius: var(--r-12);
   animation: pop 0.25s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+.clon .ico {
+  width: 22px;
+  height: 22px;
 }
 
 .clon small {
@@ -638,11 +779,6 @@ input:focus {
 
 .clon[data-fijo] small {
   background: var(--rojo);
-}
-
-.clon.editando {
-  outline: 2px solid var(--esm);
-  outline-offset: 2px;
 }
 
 .clon--fuga {
@@ -672,115 +808,96 @@ input:focus {
   }
 }
 
-.editor {
-  position: fixed;
-  z-index: 50;
-  width: 265px;
-  padding: var(--e-16);
-  background: rgba(14, 26, 22, 0.96);
-  border: 1px solid rgba(52, 211, 153, 0.45);
-  border-radius: var(--r-14);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
-  animation: pop 0.2s;
-}
+/* --------------------------------------------------------------------------
+   9. Resumen de consumo
+   -------------------------------------------------------------------------- */
 
-.editor b {
-  display: block;
-  margin-bottom: 10px;
-  font-size: var(--t-md);
-}
-
-.editor select {
-  padding: var(--e-8) var(--e-10);
-  margin-bottom: 9px;
-  font-size: var(--t-sm);
-}
-
-.editor p {
-  margin: 0;
-  font-size: var(--t-xs);
-  font-weight: 600;
-  color: var(--esm);
-}
-
-.resumen-casa {
-  margin-bottom: var(--e-16);
-}
-
-.resumen-casa__cab {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--e-16);
-}
-
-.resumen-casa__datos {
+.banda-resumen {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--e-8) var(--e-16);
-  margin: var(--e-12) 0;
-  padding: var(--e-12) 0;
-  border-top: 1px solid var(--borde);
-  border-bottom: 1px solid var(--borde);
-}
-
-.campo-inline {
-  display: flex;
-  align-items: center;
-  gap: var(--e-8);
-  margin: 0;
-  color: var(--tenue);
-  font-size: var(--t-xs);
-  white-space: nowrap;
-}
-
-.campo-inline strong {
-  color: var(--texto);
-  font-weight: 600;
-}
-
-.kpis-resumen {
-  display: flex;
-  flex-wrap: wrap;
-  flex: 1 1 520px;
-  justify-content: flex-end;
-  gap: var(--e-10);
-  margin-left: auto;
-}
-
-.kpi {
-  flex: 0 1 300px;
-  min-width: 0;
-  padding: var(--e-12) var(--e-16);
-  background: var(--superficie-2);
+  gap: var(--e-12) var(--e-24);
+  margin-bottom: var(--e-12);
+  padding: var(--e-14) var(--e-18);
+  background: var(--superficie);
   border: 1px solid var(--borde);
-  border-radius: var(--r-12);
+  border-radius: var(--r);
+  box-shadow: var(--sombra);
 }
 
-.kpi span {
-  display: block;
+.banda-resumen__consumo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.banda-resumen__rotulo {
+  margin: 0;
+  color: var(--tenue);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.banda-resumen__cifra {
+  margin: 0;
+  line-height: 1;
+}
+
+.banda-resumen__cifra strong {
+  font-size: var(--t-3xl);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.banda-resumen__mes {
+  margin: 0;
   color: var(--tenue);
   font-size: var(--t-xs);
 }
 
-.kpi strong {
-  display: block;
-  margin: var(--e-4) 0;
-  color: var(--texto);
-  font-weight: 800;
-  font-size: var(--t-2xl);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+.banda-resumen__datos {
+  display: flex;
+  gap: var(--e-16);
+  margin: 0;
+  padding-left: var(--e-24);
+  border-left: 1px solid var(--borde);
 }
 
-.kpi:not(.kpi--principal) strong {
-  font-size: var(--t-xl);
+.banda-resumen__datos > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.kpi small {
+.banda-resumen__datos dt {
   color: var(--tenue);
+  font-size: var(--t-xs);
+}
+
+.banda-resumen__datos dd {
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--t-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.banda-resumen .kpi-fugas {
+  margin: 0 0 0 auto;
+}
+
+.banda-resumen__cta {
+  flex: 0 0 auto;
+}
+
+/* Cambiar de vivienda vive junto a los datos que dependen de ella: es la
+   acción de la casa, no una acción del reporte. */
+.banda-resumen__cambiar {
+  flex: 0 0 auto;
   font-size: var(--t-xs);
 }
 
@@ -822,9 +939,9 @@ input:focus {
   background: var(--rojo);
 }
 
-.diagnostico {
-  margin-top: 16px;
-}
+/* --------------------------------------------------------------------------
+   10. Diagnóstico
+   -------------------------------------------------------------------------- */
 
 .diagnostico__cab {
   display: flex;
@@ -941,21 +1058,28 @@ input:focus {
   margin: 0 0 var(--e-12);
 }
 
+/* Franja de tres cifras: rótulo a la izquierda, valor a la derecha. */
 .mini {
-  padding: var(--e-10) var(--e-12);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--e-10);
+  padding: var(--e-8) var(--e-12);
   background: var(--superficie-2);
   border: 1px solid var(--borde);
   border-radius: var(--r-10);
 }
 
 .mini strong {
-  display: block;
-  font-size: var(--t-lg);
+  order: 2;
+  font-size: var(--t-md);
   font-weight: 800;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
 .mini span {
+  order: 1;
   color: var(--tenue);
   font-size: var(--t-xs);
 }
@@ -1050,66 +1174,25 @@ input:focus {
   margin: 0;
 }
 
-.menu-acciones {
-  position: relative;
+/* --------------------------------------------------------------------------
+   11. Acciones del diagnóstico
+   -------------------------------------------------------------------------- */
+
+.acciones-diag {
+  display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-8);
 }
 
-.btn-menu {
-  padding: var(--e-8) var(--e-12);
-  color: var(--tenue);
-  font: inherit;
+.acciones-diag .btn-sim {
   font-size: var(--t-xs);
-  font-weight: 600;
-  background: transparent;
-  border: 1px solid var(--borde);
-  border-radius: var(--r-10);
-  cursor: pointer;
 }
 
-.btn-menu:hover {
-  color: var(--texto);
-  background: var(--superficie-2);
-}
-
-.menu-acciones__lista {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 6px);
-  z-index: 20;
-  display: grid;
-  min-width: 210px;
-  padding: var(--e-4);
-  background: var(--superficie);
-  border: 1px solid var(--borde);
-  border-radius: var(--r-10);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
-}
-
-.menu-acciones__lista button {
-  width: 100%;
-  padding: var(--e-8) var(--e-10);
-  color: var(--texto);
-  font: inherit;
-  font-size: var(--t-xs);
-  text-align: left;
-  background: transparent;
-  border: 0;
-  border-radius: var(--r-8);
-  cursor: pointer;
-}
-
-.menu-acciones__lista button:hover {
-  background: var(--superficie-2);
-}
-
-.menu-acciones__lista .peligro {
-  color: #fecaca;
-}
-
-.menu-acciones__lista .peligro:hover {
-  background: rgba(248, 113, 113, 0.12);
-}
+/* --------------------------------------------------------------------------
+   12. Simulador y tanque
+   -------------------------------------------------------------------------- */
 
 .sim__cab {
   display: flex;
@@ -1209,6 +1292,73 @@ input:focus {
   min-height: 0;
 }
 
+/* Entrada de agua. El chorro es simbólico: el grosor habla de la fuente (red o
+   madrugada), no del caudal, que a 1× sería invisible. Va descentrado a la
+   derecha para no cruzar el porcentaje del centro, y su alto termina justo en la
+   superficie (--nivel la escribe simRender) en vez de flotar en el aire. El tubo
+   se queda siempre; lo que aparece y desaparece es el hilo. */
+.tanque__entrada {
+  position: absolute;
+  top: 0;
+  left: 84%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 0;
+  height: 100%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.tanque__tubo {
+  width: 28px;
+  height: 5px;
+  margin-top: 3px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #64748b, #334155);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.tanque__chorro {
+  flex: 0 0 auto;
+  width: 2px;
+  height: calc(100% - var(--nivel, 0%) - 9px);
+  opacity: 0;
+  border-radius: 1px;
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0) 0 3px,
+      rgba(255, 255, 255, 0.45) 3px 6px
+    ),
+    linear-gradient(180deg, rgba(186, 230, 253, 0.9), rgba(103, 232, 249, 0.95));
+  box-shadow: 0 0 5px rgba(56, 189, 248, 0.45);
+  animation: chorro 0.6s linear infinite;
+  transition: opacity 0.15s linear;
+}
+
+@keyframes chorro {
+  to {
+    background-position:
+      center 6px,
+      center 0;
+  }
+}
+
+.tanque[data-entrada='red'] .tanque__chorro,
+.tanque[data-entrada='madrugada'] .tanque__chorro {
+  opacity: 1;
+}
+
+.tanque[data-entrada='madrugada'] .tanque__chorro {
+  width: 5px;
+  box-shadow:
+    0 0 9px rgba(56, 189, 248, 0.5),
+    0 0 3px rgba(186, 230, 253, 0.8);
+  animation-duration: 0.5s;
+}
+
 .agua {
   position: absolute;
   left: 0;
@@ -1290,8 +1440,49 @@ input:focus {
   border-radius: var(--r-6);
 }
 
+/* Sin entrada de agua: aviso, no peligro. Va antes de .tanque.critico para
+   que el rojo gane cuando además el nivel es crítico. El anillo exterior y el
+   tubo encendido son lo que se ve con el tinaco lleno: el brillo interior queda
+   bajo el agua. El tubo se ilumina porque es la boca que se cerró. */
+.tanque.sin-entrada {
+  border-color: rgba(251, 191, 36, 0.9);
+  box-shadow:
+    0 0 0 2px rgba(251, 191, 36, 0.32),
+    inset 0 0 0 1px rgba(251, 191, 36, 0.22),
+    inset 0 0 44px rgba(251, 191, 36, 0.1);
+}
+
+.tanque.sin-entrada .tanque__tubo {
+  background: linear-gradient(180deg, var(--ambar), #b45309);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.tanque__pildora {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  padding: 2px 7px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: var(--r-6);
+  color: var(--ambar);
+  background: rgba(6, 18, 14, 0.82);
+  font-size: var(--t-micro);
+  font-weight: 700;
+  pointer-events: none;
+}
+
 .tanque.critico {
   border-color: rgba(248, 113, 113, 0.7);
+  box-shadow:
+    0 0 0 1px rgba(248, 113, 113, 0.28),
+    inset 0 0 0 1px rgba(248, 113, 113, 0.18),
+    inset 0 0 44px rgba(248, 113, 113, 0.1);
+}
+
+.tanque.critico .tanque__pildora {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.4);
 }
 
 .tanque.critico .agua {
@@ -1366,7 +1557,7 @@ input:focus {
 
 .sim__banda-fila {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 0.8fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: var(--e-16);
 }
 
@@ -1385,57 +1576,13 @@ input:focus {
   text-transform: uppercase;
 }
 
-.sim__modos {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--e-6);
-}
-
-.modo-suministro {
-  display: grid;
-  justify-items: center;
-  gap: 2px;
-  padding: var(--e-8) var(--e-6);
-  color: var(--tenue);
-  font: inherit;
-  font-size: var(--t-xs);
-  font-weight: 600;
-  text-align: center;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--borde);
-  border-radius: var(--r-8);
-  cursor: pointer;
-}
-
-.modo-suministro:hover {
-  color: var(--texto);
-  background: rgba(52, 211, 153, 0.08);
-  border-color: rgba(52, 211, 153, 0.45);
-}
-
-.modo-suministro.activo {
-  color: var(--esm);
-  background: rgba(52, 211, 153, 0.14);
-  border-color: var(--esm);
-}
-
-.modo-suministro small {
+.sim__cortes-nota {
+  display: block;
+  margin-top: 8px;
   color: var(--tenue);
   font-size: var(--t-micro);
   font-weight: 500;
-  line-height: 1.2;
-}
-
-.modo-suministro--flujo {
-  border-color: var(--esm);
-  background: rgba(52, 211, 153, 0.2);
-  box-shadow:
-    0 0 0 1px var(--esm),
-    0 0 14px rgba(52, 211, 153, 0.22);
-}
-
-.modo-suministro--flujo small {
-  color: var(--esm);
+  line-height: 1.35;
 }
 
 .sim__franja {
@@ -1498,79 +1645,67 @@ input:focus {
   border-color: var(--esm);
 }
 
-.sim__control-nota {
-  margin: 8px 0 0;
+.sim__nota {
+  margin: var(--e-10) 0 0;
+  padding: var(--e-8) var(--e-10);
   color: var(--tenue);
   font-size: var(--t-xs);
-  line-height: 1.45;
+  line-height: 1.5;
+  background: var(--fondo);
+  border-left: 2px solid var(--borde-fuerte);
+  border-radius: 0 var(--r-8) var(--r-8) 0;
 }
 
-.sim__bomba-estado {
-  display: block;
-  margin-top: 6px;
-  color: var(--texto);
-  font-size: var(--t-sm);
-  line-height: 1.3;
-}
-
-.sim__bomba-estado[data-estado='activa'],
-.sim__bomba-estado[data-estado='ok'] {
-  color: var(--esm);
-}
-
-.sim__bomba-estado[data-estado='aviso'] {
-  color: #fca5a5;
-}
-
-.sim__aviso-vacio {
-  margin: 0;
-  padding: var(--e-12) var(--e-16);
-  background: rgba(220, 38, 38, 0.08);
-  border: 1px solid rgba(248, 113, 113, 0.36);
-  border-radius: var(--r-10);
-}
-
-.sim__aviso-vacio strong {
-  display: block;
-  margin-bottom: 3px;
-  color: #fecaca;
-  font-size: var(--t-sm);
-}
-
-.sim__aviso-vacio p {
-  margin: 0 0 9px;
-  color: var(--tenue);
-  font-size: var(--t-xs);
-}
-
-.sim__aviso-acciones {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--e-8);
-}
+/* --------------------------------------------------------------------------
+   13. Bitácora y detalles
+   -------------------------------------------------------------------------- */
 
 .bitacora {
-  padding: var(--e-10) var(--e-12);
+  padding: 0;
   background: var(--superficie-2);
   border: 1px solid var(--borde);
   border-radius: var(--r-10);
 }
 
-.bitacora__cab {
+.bitacora > summary {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--e-10);
-  margin-bottom: var(--e-8);
+  padding: var(--e-10) var(--e-12);
+  list-style: none;
+  cursor: pointer;
 }
 
-.bitacora__cab h3 {
+.bitacora > summary::-webkit-details-marker {
+  display: none;
+}
+
+.bitacora > summary::after {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  margin-top: -3px;
+  border-right: 1.75px solid var(--tenue);
+  border-bottom: 1.75px solid var(--tenue);
+  transform: rotate(-45deg);
+  transition: transform var(--dur-base) var(--ease);
+}
+
+.bitacora[open] > summary::after {
+  transform: rotate(45deg);
+}
+
+.bitacora > summary h3 {
   margin: 0;
   color: var(--texto);
   font-size: var(--t-sm);
 }
 
 .bitacora__vacio {
+  margin-left: auto;
   color: var(--tenue);
   font-size: var(--t-micro);
 }
@@ -1580,7 +1715,7 @@ input:focus {
   gap: 4px;
   max-height: 132px;
   margin: 0;
-  padding: 0;
+  padding: 0 var(--e-12) var(--e-12);
   overflow-y: auto;
   list-style: none;
 }
@@ -1610,10 +1745,6 @@ input:focus {
 
 .bitacora__item--pico span {
   color: #fde68a;
-}
-
-.bitacora__item--bomba span {
-  color: var(--texto);
 }
 
 .sim__detalles {
@@ -1658,6 +1789,10 @@ input:focus {
   font-variant-numeric: tabular-nums;
 }
 
+/* --------------------------------------------------------------------------
+   14. Sensores
+   -------------------------------------------------------------------------- */
+
 .sensores {
   margin: 0;
   padding: 0;
@@ -1679,13 +1814,19 @@ input:focus {
 }
 
 .sensores > summary::after {
-  content: '▸';
-  color: var(--tenue);
-  font-size: var(--t-xs);
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: -3px;
+  border-right: 1.75px solid currentColor;
+  border-bottom: 1.75px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--dur-base) var(--ease);
 }
 
 .sensores[open] > summary::after {
-  content: '▾';
+  transform: rotate(45deg);
 }
 
 .sensores__titulo strong {
@@ -1788,7 +1929,15 @@ input:focus {
   border-left-color: rgba(255, 255, 255, 0.18);
 }
 
+/* --------------------------------------------------------------------------
+   15. Botones
+   -------------------------------------------------------------------------- */
+
 .btn-sim {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e-6);
   padding: var(--e-10) var(--e-16);
   font-size: var(--t-sm);
   border-radius: var(--r-10);
@@ -1818,12 +1967,24 @@ input:focus {
 .btn-sim--sec {
   color: var(--tenue);
   background: transparent;
-  border: 1px solid var(--borde);
+  border: 1px solid var(--borde-fuerte);
 }
 
 .btn-sim--sec:hover {
   color: var(--texto);
   background: var(--superficie-2);
+  border-color: var(--borde);
+}
+
+.btn-sim--funcion {
+  color: var(--tenue);
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.btn-sim--funcion:hover {
+  color: var(--texto);
+  background: rgba(255, 255, 255, 0.05);
   border-color: var(--borde);
 }
 
@@ -1839,6 +2000,10 @@ input:focus {
   transform: none;
   box-shadow: none;
 }
+
+/* --------------------------------------------------------------------------
+   16. Modales y guía
+   -------------------------------------------------------------------------- */
 
 .modal {
   position: fixed;
@@ -1863,6 +2028,9 @@ input:focus {
 }
 
 .modal__titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--e-6);
   margin: 0 0 10px;
   font-size: var(--t-lg);
   font-weight: 700;
@@ -1932,10 +2100,10 @@ input:focus {
   border-top: 0;
 }
 
-.ayuda h4 {
+.ayuda h3 {
   margin: 0 0 3px;
   color: var(--texto);
-  font-size: var(--t-sm);
+  font-size: var(--h3);
 }
 
 .ayuda p {
@@ -1969,6 +2137,17 @@ input:focus {
   color: var(--tenue);
   font-size: var(--t-xs);
   line-height: 1.5;
+}
+
+.onboarding__aviso {
+  margin: 0 0 10px;
+  padding: var(--e-8) var(--e-10);
+  color: var(--texto);
+  font-size: var(--t-xs);
+  line-height: 1.45;
+  background: rgba(251, 191, 36, 0.1);
+  border-left: 2px solid var(--ambar);
+  border-radius: 0 var(--r-8) var(--r-8) 0;
 }
 
 .onboarding__perfiles {
@@ -2005,12 +2184,64 @@ input:focus {
 
 .perfil-opcion__caja {
   display: grid;
-  gap: var(--e-4);
+  /* start: la figura y el texto se apilan desde arriba. Con el reparto por
+     defecto, el sobrante de una tarjeta más alta estiraría la ilustración. */
+  align-content: start;
+  gap: 0;
   height: 100%;
-  padding: var(--e-10) var(--e-12);
+  padding: 0 0 var(--e-10);
   border: 1px solid var(--borde);
   border-radius: var(--r-10);
   background: rgba(255, 255, 255, 0.03);
+  /* Recorta la ilustración para que herede las esquinas de la tarjeta. */
+  overflow: hidden;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+/* Ilustración de la vivienda. Un SVG en línea por tarjeta: sin peticiones ni
+   conexión, y escala sin pixelarse en cualquier ancho. El trazo vive aquí,
+   igual que en el sprite de iconos. */
+.perfil-opcion__figura {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 8 / 3;
+  margin-bottom: var(--e-8);
+  color: var(--tenue);
+  background: radial-gradient(120% 90% at 50% 0%, rgba(52, 211, 153, 0.1), transparent 70%);
+  pointer-events: none;
+}
+
+.perfil-opcion__trazo {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* El tinaco es el tema de la app: único acento esmeralda de la ilustración. */
+.perfil-opcion__figura .fig-tanque {
+  stroke: var(--esm);
+}
+
+.perfil-opcion__figura .fig-suelo,
+.perfil-opcion__figura .fig-jardin {
+  stroke-opacity: 0.45;
+}
+
+.perfil-opcion__caja > strong,
+.perfil-opcion__caja > small,
+.perfil-opcion__caja > .perfil-opcion__datos {
+  padding-inline: var(--e-12);
+}
+
+.perfil-opcion:hover .perfil-opcion__caja,
+.perfil-opcion:focus-visible .perfil-opcion__caja {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .perfil-opcion__caja strong {
@@ -2018,11 +2249,31 @@ input:focus {
 }
 
 .perfil-opcion__caja small {
-  margin: 0;
+  margin: 2px 0 0;
   color: var(--tenue);
   font-size: var(--t-micro);
   line-height: 1.35;
 }
+
+/* Las dos cifras que la vivienda trae puestas: sin esto, el onboarding
+   obligaba a elegir a ciegas y a descubrirlas después en la banda. */
+.perfil-opcion__datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-8);
+  margin-top: var(--e-4);
+  color: var(--texto);
+  font-size: var(--t-micro);
+}
+
+.perfil-opcion__datos b {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   17. Resumen de sesión
+   -------------------------------------------------------------------------- */
 
 .modal__caja--resumen {
   max-width: 480px;
@@ -2137,42 +2388,13 @@ input:focus {
   gap: var(--e-10);
 }
 
-@media (min-width: 1000px) {
-  .app-grid {
-    grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
-    grid-template-areas: 'disp plano';
-  }
-  #paleta {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--e-16);
-  }
-  .paleta__grupo {
-    flex: 0 0 auto;
-  }
-  .paleta__grupo + .paleta__grupo {
-    padding-top: var(--e-12);
-    padding-left: 0;
-    border-top: 1px solid var(--borde);
-    border-left: 0;
-  }
-  .paleta__items {
-    flex-direction: column;
-  }
-  .col-disp .item {
-    flex: 0 0 auto;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: var(--e-10);
-    padding: var(--e-8) calc(var(--e-10) + 20px) var(--e-8) var(--e-10);
-  }
-}
+/* --------------------------------------------------------------------------
+   18. Adaptación a pantallas
+   -------------------------------------------------------------------------- */
 
 /* Portátiles y ventanas bajas (720-768 px de ventana ≈ 630-680 de viewport).
-   El resumen ocupaba 297 px y empujaba el plano fuera de pantalla, así que en
-   lugar de recortar tipografía se reparte el resumen en dos filas usando el
-   ancho: cabecera arriba, datos + fugas abajo. */
+   La banda de resumen se comprime para que el plano entre en la primera pantalla
+   sin recortar la tipografía de las cifras más allá de un paso. */
 @media (min-width: 1000px) and (max-height: 780px) {
   body {
     padding-top: var(--e-10);
@@ -2187,44 +2409,13 @@ input:focus {
   .vistas {
     margin-bottom: var(--e-10);
   }
-  .resumen-casa {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--e-6) var(--e-16);
+  .banda-resumen {
+    gap: var(--e-8) var(--e-20);
     margin-bottom: var(--e-10);
-    padding: var(--e-12);
+    padding: var(--e-10) var(--e-14);
   }
-  .resumen-casa .eyebrow {
-    display: none;
-  }
-  .resumen-casa__cab {
-    grid-column: 1 / -1;
-    align-items: center;
-  }
-  .resumen-casa__datos {
-    grid-column: 1;
-    flex-wrap: nowrap;
-    margin: 0;
-    padding: 0;
-    border: 0;
-  }
-  .kpi {
-    padding: var(--e-8) var(--e-12);
-  }
-  .kpi strong {
-    margin: 0;
-    font-size: var(--t-xl);
-  }
-  .kpi-fugas {
-    grid-column: 2;
-    margin: 0;
-  }
-  .col-disp {
-    padding: var(--e-10) var(--e-12);
-  }
-  .col-disp .seccion-cab {
-    margin-bottom: var(--e-6);
+  .banda-resumen__cifra strong {
+    font-size: var(--t-2xl);
   }
   .col-plano {
     padding: var(--e-12);
@@ -2260,15 +2451,22 @@ input:focus {
   body {
     padding: var(--e-16) var(--e-12) var(--e-32);
   }
-  .kpis-resumen {
-    flex: 1 1 100%;
+  .banda-resumen {
+    align-items: stretch;
+    gap: var(--e-10);
+    padding: var(--e-14);
+  }
+  .banda-resumen__datos {
+    padding-left: var(--e-16);
+  }
+  .banda-resumen .kpi-fugas {
     margin-left: 0;
   }
-  .kpi {
-    flex: 1 1 0;
-  }
-  .resumen-casa__cab .btn-sim {
+  .banda-resumen__cta {
     width: 100%;
+  }
+  .catalogo__pista {
+    display: none;
   }
   .sim__detalles-grid {
     grid-template-columns: 1fr 1fr;
@@ -2277,9 +2475,17 @@ input:focus {
     flex-direction: column;
     align-items: stretch;
   }
-  .menu-acciones__lista {
-    right: auto;
-    left: 0;
+  .acciones-diag {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  /* La dona y su lista no caben lado a lado: los nombres se truncaban. */
+  .diag-consumo__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .banda-resumen__cambiar {
+    width: 100%;
+    justify-content: center;
   }
   .metricas.secundarias {
     grid-template-columns: 1fr 1fr;
@@ -2302,10 +2508,39 @@ input:focus {
   .sim__sesion {
     width: 100%;
   }
+  /* La velocidad toma su propia fila para que Reiniciar no quede huérfano
+     debajo del botón principal. */
+  .sim__velocidad {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
   .sim__sesion .btn-sim--principal {
     flex: 1 1 auto;
   }
+  /* Sin borde, el botón de función se leía como texto suelto al envolverse. */
+  .sim__sesion .btn-sim--funcion {
+    color: var(--texto);
+    border-color: var(--borde-fuerte);
+  }
   .resumen__kpis {
     grid-template-columns: 1fr;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   19. Movimiento reducido
+   --------------------------------------------------------------------------
+   Nada de la interfaz depende de una animación para comunicar estado, así que
+   se puede apagar todo. El agua del tanque no se ve afectada: su altura se
+   escribe fotograma a fotograma desde JavaScript, no con una transición. */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

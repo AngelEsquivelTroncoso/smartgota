@@ -5,19 +5,180 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0b1210" />
     <title>SmartGota — Calcula tu consumo de agua</title>
-    <link rel="stylesheet" href="styles.css?v=51" />
+    <link rel="stylesheet" href="styles.css?v=68" />
   </head>
   <body>
+    <!-- Sprite de iconos: una sola familia outline, trazo 1.75, 24×24.
+         Se referencia con <use href="#ico-…"> desde index.html y app.js. -->
+    <svg class="sprite" aria-hidden="true" focusable="false" width="0" height="0">
+      <symbol id="ico-agua" viewBox="0 0 24 24">
+        <path d="M12 3.5c2.6 3.1 4.7 5.9 4.7 8.8a4.7 4.7 0 1 1-9.4 0c0-2.9 2.1-5.7 4.7-8.8Z" />
+      </symbol>
+      <symbol id="ico-ducha" viewBox="0 0 24 24">
+        <path d="M12 3v3" />
+        <path d="M7 6h10l-1.5 4h-7Z" />
+        <path d="M8.5 13v3" />
+        <path d="M12 13v4" />
+        <path d="M15.5 13v3" />
+      </symbol>
+      <symbol id="ico-inodoro" viewBox="0 0 24 24">
+        <rect x="5" y="3" width="14" height="4" rx="1" />
+        <ellipse cx="12" cy="13.5" rx="7" ry="6" />
+        <path d="M12 19.5v2" />
+        <path d="M9 21.5h6" />
+      </symbol>
+      <symbol id="ico-lavabo" viewBox="0 0 24 24">
+        <path d="M3 11h18" />
+        <path d="M6 11a6 6 0 0 0 12 0" />
+        <path d="M12 11V6.5a2 2 0 0 1 4 0" />
+        <path d="M16 8.5v1" />
+      </symbol>
+      <symbol id="ico-tina" viewBox="0 0 24 24">
+        <path d="M3 11h18" />
+        <path d="M5 11v4a4 4 0 0 0 4 4h6a4 4 0 0 0 4-4v-4" />
+        <path d="M7 15c1.5-1.5 3-1.5 4.5 0s3 1.5 4.5 0" />
+        <path d="M8 20.5 7 22" />
+        <path d="M16 20.5 17 22" />
+      </symbol>
+      <symbol id="ico-lavadora" viewBox="0 0 24 24">
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <circle cx="12" cy="14" r="4" />
+        <path d="M16 7h.01" />
+      </symbol>
+      <symbol id="ico-lavavajillas" viewBox="0 0 24 24">
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <path d="M4 10h16" />
+        <circle cx="8.5" cy="15" r="1.6" />
+        <circle cx="15.5" cy="15" r="1.6" />
+      </symbol>
+      <symbol id="ico-grifo" viewBox="0 0 24 24">
+        <path d="M12 21v-9" />
+        <path d="M8.5 21h7" />
+        <circle cx="12" cy="10" r="1.8" />
+        <path d="M12 7V3.5" />
+        <path d="M9.6 8 6 4.5" />
+        <path d="M14.4 8 18 4.5" />
+      </symbol>
+      <symbol id="ico-aire" viewBox="0 0 24 24">
+        <path d="M3 8h11a2.5 2.5 0 1 0-2.5-2.5" />
+        <path d="M3 12h14a2.5 2.5 0 1 1-2.5 2.5" />
+        <path d="M3 16h8" />
+      </symbol>
+      <symbol id="ico-filtro" viewBox="0 0 24 24">
+        <path d="M12 3.5c2.5 3 4.5 5.6 4.5 8.4a4.5 4.5 0 1 1-9 0c0-2.8 2-5.4 4.5-8.4Z" />
+        <path d="M7.8 12.5h8.4" />
+      </symbol>
+      <symbol id="ico-fuga" viewBox="0 0 24 24">
+        <path d="M4 6h9a5 5 0 0 1 5 5v3" />
+        <path d="M18 14c0 0 1.5 1.8 1.5 3.1a1.5 1.5 0 0 1-3 0c0-1.3 1.5-3.1 1.5-3.1Z" />
+      </symbol>
+      <symbol id="ico-recamara" viewBox="0 0 24 24">
+        <path d="M3 19v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6" />
+        <path d="M3 5v14" />
+        <path d="M7 11V8h5v3" />
+        <path d="M3 19v2" />
+        <path d="M21 19v2" />
+      </symbol>
+      <symbol id="ico-bano" viewBox="0 0 24 24">
+        <path d="M3 11h18" />
+        <path d="M5 11v4a4 4 0 0 0 4 4h6a4 4 0 0 0 4-4v-4" />
+        <path d="M6.5 11V8" />
+        <path d="M6.5 8h2.5" />
+      </symbol>
+      <symbol id="ico-cocina" viewBox="0 0 24 24">
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+        <circle cx="9" cy="9" r="1.6" />
+        <circle cx="15" cy="9" r="1.6" />
+        <path d="M8 16h8" />
+      </symbol>
+      <symbol id="ico-sala" viewBox="0 0 24 24">
+        <path d="M5 11V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4" />
+        <path d="M3 11a2 2 0 0 1 4 0v3h10v-3a2 2 0 0 1 4 0v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+      </symbol>
+      <symbol id="ico-comedor" viewBox="0 0 24 24">
+        <path d="M7 3v7a2 2 0 0 0 4 0V3" />
+        <path d="M9 12v9" />
+        <path d="M16 21V3a3 3 0 0 1 3 3v4h-3" />
+      </symbol>
+      <symbol id="ico-lavanderia" viewBox="0 0 24 24">
+        <path d="M4 9h16l-2 10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2Z" />
+        <path d="M8 9V7a4 4 0 0 1 8 0v2" />
+      </symbol>
+      <symbol id="ico-patio" viewBox="0 0 24 24">
+        <path d="M12 10V4" />
+        <path d="M12 10c-4 0-6-2-6-5 4 0 6 2 6 5Z" />
+        <path d="M12 8c3 0 4-2 4-4-3 0-4 2-4 4Z" />
+        <path d="M7 12h10l-1 7a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2Z" />
+      </symbol>
+      <symbol id="ico-estudio" viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="11" rx="2" />
+        <path d="M9 20h6" />
+        <path d="M12 16v4" />
+      </symbol>
+      <symbol id="ico-play" viewBox="0 0 24 24">
+        <path d="M8 5.5 18 12 8 18.5Z" fill="currentColor" stroke="none" />
+      </symbol>
+      <symbol id="ico-pausa" viewBox="0 0 24 24">
+        <rect x="7" y="5.5" width="3.5" height="13" rx="1" fill="currentColor" stroke="none" />
+        <rect x="13.5" y="5.5" width="3.5" height="13" rx="1" fill="currentColor" stroke="none" />
+      </symbol>
+      <symbol id="ico-reiniciar" viewBox="0 0 24 24">
+        <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" />
+        <path d="M3 4v5h5" />
+      </symbol>
+      <symbol id="ico-cerrar" viewBox="0 0 24 24">
+        <path d="M6 6l12 12" />
+        <path d="M18 6 6 18" />
+      </symbol>
+      <symbol id="ico-casa" viewBox="0 0 24 24">
+        <path d="M4 10.5 12 4l8 6.5" />
+        <path d="M6 9.8V20h12V9.8" />
+        <path d="M10 20v-5h4v5" />
+      </symbol>
+      <symbol id="ico-documento" viewBox="0 0 24 24">
+        <path d="M6 3.5h8l4 4v13H6z" />
+        <path d="M14 3.5v4h4" />
+        <path d="M9 12h6" />
+        <path d="M9 15.5h6" />
+      </symbol>
+      <symbol id="ico-imagen" viewBox="0 0 24 24">
+        <rect x="3.5" y="5" width="17" height="14" rx="2" />
+        <circle cx="9" cy="10.5" r="1.6" />
+        <path d="m4.5 17.5 4.8-4.4 3.4 3 2.6-2.3 4.2 4" />
+      </symbol>
+      <symbol id="ico-flecha" viewBox="0 0 24 24">
+        <path d="M4 12h15" />
+        <path d="m14 6 6 6-6 6" />
+      </symbol>
+      <symbol id="ico-aviso" viewBox="0 0 24 24">
+        <path d="M12 4.5 21 19.5H3Z" />
+        <path d="M12 10v4" />
+        <path d="M12 17h.01" />
+      </symbol>
+      <symbol id="ico-ayuda" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .9-1 1.6v.3" />
+        <path d="M12 16.8h.01" />
+      </symbol>
+    </svg>
+
     <header class="cabecera">
       <div class="marca">
-        <span class="marca__icono" aria-hidden="true">💧</span>
+        <span class="marca__icono" aria-hidden="true">
+          <svg class="ico ico--lg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <use href="#ico-agua" />
+          </svg>
+        </span>
         <div>
-          <strong>SmartGota</strong>
+          <h1>SmartGota</h1>
           <small>El detective del agua</small>
         </div>
       </div>
       <button type="button" class="btn-ayuda" id="btn-ayuda" aria-label="Abrir guía de uso">
-        ? Ayuda
+        <svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <use href="#ico-ayuda" />
+        </svg>
+        Ayuda
       </button>
     </header>
 
@@ -30,6 +191,7 @@
           role="tab"
           aria-selected="true"
           aria-controls="vista-constructor"
+          tabindex="0"
         >
           Mi casa
         </button>
@@ -40,6 +202,7 @@
           role="tab"
           aria-selected="false"
           aria-controls="vista-simulador"
+          tabindex="-1"
         >
           Simulador
         </button>
@@ -52,36 +215,34 @@
         role="tabpanel"
         aria-labelledby="tab-mi-casa"
       >
-        <section class="tarjeta resumen-casa" aria-labelledby="resumen-titulo">
-          <div class="resumen-casa__cab">
+        <section class="banda-resumen" aria-labelledby="resumen-titulo">
+          <div class="banda-resumen__consumo">
+            <h2 class="banda-resumen__rotulo" id="resumen-titulo">Consumo diario</h2>
+            <p class="banda-resumen__cifra"><strong id="m-litros">0 L</strong></p>
+            <p class="banda-resumen__mes" id="m-litros-mes-corta">aún sin dispositivos</p>
+          </div>
+
+          <dl class="banda-resumen__datos">
             <div>
-              <p class="eyebrow">Tu casa</p>
-              <h2 id="resumen-titulo">Resumen de consumo</h2>
+              <dt>Personas</dt>
+              <dd id="habitantes">4</dd>
             </div>
-            <button class="btn-sim btn-sim--principal" id="btn-ir-simulador" type="button">
-              Simular el día →
-            </button>
-          </div>
-
-          <div class="resumen-casa__datos">
-            <span class="campo-inline">
-              <span>Personas</span>
-              <strong id="habitantes">4</strong>
-            </span>
-
-            <span class="campo-inline">
-              <span>Tinaco</span>
-              <strong id="capacidad">750 L</strong>
-            </span>
-
-            <div class="kpis-resumen" aria-label="Indicadores principales">
-              <article class="kpi kpi--principal">
-                <span>Consumo diario</span>
-                <strong id="m-litros">0 L</strong>
-                <small id="m-litros-mes-corta">aún sin dispositivos</small>
-              </article>
+            <div>
+              <dt>Tinaco</dt>
+              <dd id="capacidad">750 L</dd>
             </div>
-          </div>
+          </dl>
+
+          <button
+            type="button"
+            class="btn-sim btn-sim--sec banda-resumen__cambiar"
+            id="btn-cambiar-casa"
+          >
+            <svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <use href="#ico-casa" />
+            </svg>
+            Cambiar vivienda
+          </button>
 
           <p class="kpi-fugas" id="kpi-fugas">
             <span class="kpi-fugas__punto" aria-hidden="true"></span>
@@ -89,112 +250,117 @@
             <strong id="m-fugas">0 L/día</strong>
             <small id="m-fugas-detalle">sin fugas en el plano</small>
           </p>
+
+          <button
+            class="btn-sim btn-sim--principal banda-resumen__cta"
+            id="btn-ir-simulador"
+            type="button"
+          >
+            Simular el día
+            <svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <use href="#ico-flecha" />
+            </svg>
+          </button>
         </section>
 
         <div class="app-grid">
-          <aside class="tarjeta col-disp" aria-labelledby="disp-titulo">
-            <div class="seccion-cab">
-              <div>
-                <h2 id="disp-titulo">Aparatos de tu casa</h2>
-                <p class="pista">
-                  Catálogo informativo: el flujo base y una descripción. Toca un aparato del plano
-                  para cambiar su modo.
-                </p>
-              </div>
-            </div>
-            <div id="paleta"></div>
-          </aside>
-
           <section class="tarjeta col-plano" aria-labelledby="plano-titulo">
             <div class="seccion-cab">
               <div>
                 <h2 id="plano-titulo">Plano de la vivienda</h2>
-                <p class="pista">El color de cada habitación indica su consumo.</p>
+                <p class="pista">
+                  El color de cada habitación indica su consumo. Los aparatos del plano muestran su
+                  gasto estimado al día.
+                </p>
               </div>
             </div>
             <div class="tabs">
               <div id="tabs" role="tablist" aria-label="Pisos"></div>
             </div>
             <div id="plano"></div>
-          </section>
-        </div>
 
-        <section class="tarjeta diagnostico" aria-labelledby="diag-titulo">
-          <div class="diagnostico__cab">
-            <div>
-              <p class="eyebrow">Diagnóstico</p>
-              <h2 id="diag-titulo">¿Cómo va tu casa?</h2>
-            </div>
-          </div>
-
-          <div class="diagnostico__alerta">
-            <div class="alerta" id="alerta" role="status" aria-live="polite"></div>
-            <details class="alerta__detalle" id="alerta-rec-detalle" hidden>
-              <summary>Ver recomendación</summary>
-              <div id="alerta-rec"></div>
+            <details class="catalogo" id="catalogo">
+              <summary>
+                <span class="catalogo__titulo" id="disp-titulo">Catálogo de aparatos</span>
+                <small class="catalogo__pista">Flujo base y descripción de cada tipo</small>
+              </summary>
+              <div id="paleta"></div>
             </details>
-          </div>
+          </section>
 
-          <div class="diag-panel" id="diag-consumo">
-            <div class="metricas secundarias">
-              <div class="mini">
-                <strong id="m-mayor">—</strong>
-                <span>Mayor consumo</span>
-              </div>
-              <div class="mini">
-                <strong id="m-pct-tinaco">0 %</strong>
-                <span>Del tinaco</span>
-              </div>
-              <div class="mini">
-                <strong id="m-litros-mes">0 L (0 m³)</strong>
-                <span>Consumo mensual</span>
+          <section class="tarjeta diagnostico" aria-labelledby="diag-titulo">
+            <div class="diagnostico__cab">
+              <div>
+                <p class="eyebrow">Diagnóstico</p>
+                <h2 id="diag-titulo">¿Cómo va tu casa?</h2>
               </div>
             </div>
 
-            <div class="diag-consumo__grid">
-              <div class="grafico">
-                <canvas
-                  id="grafico-consumo"
-                  role="img"
-                  aria-label="Consumo por tipo de dispositivo"
-                ></canvas>
-                <div class="grafico__vacio" id="grafico-vacio" hidden>
-                  Sin consumo registrado en el plano
+            <div class="diagnostico__alerta">
+              <div class="alerta" id="alerta" role="status" aria-live="polite"></div>
+              <details class="alerta__detalle" id="alerta-rec-detalle" hidden>
+                <summary>Ver recomendación</summary>
+                <div id="alerta-rec"></div>
+              </details>
+            </div>
+
+            <div class="diag-panel" id="diag-consumo">
+              <div class="metricas secundarias">
+                <div class="mini">
+                  <strong id="m-mayor">—</strong>
+                  <span>Mayor consumo</span>
+                </div>
+                <div class="mini">
+                  <strong id="m-pct-tinaco">0 %</strong>
+                  <span>Del tinaco</span>
+                </div>
+                <div class="mini">
+                  <strong id="m-litros-mes">0 L (0 m³)</strong>
+                  <span>Consumo mensual</span>
                 </div>
               </div>
-              <div class="diag-consumo__lado">
-                <div class="diag-top">
-                  <h3>Consumo por tipo de dispositivo</h3>
-                  <div id="diag-top-salas"></div>
+
+              <div class="diag-consumo__grid">
+                <div class="grafico">
+                  <canvas
+                    id="grafico-consumo"
+                    role="img"
+                    aria-label="Consumo por tipo de dispositivo"
+                  ></canvas>
+                  <div class="grafico__vacio" id="grafico-vacio" hidden>
+                    Sin consumo registrado en el plano
+                  </div>
+                </div>
+                <div class="diag-consumo__lado">
+                  <div class="diag-top">
+                    <h3>Consumo por tipo de dispositivo</h3>
+                    <div id="diag-top-salas"></div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div class="diagnostico__pie">
-            <p class="pista">
-              Los datos se guardan en tu navegador. Nada sale de este dispositivo.
-            </p>
-            <div class="menu-acciones">
-              <button
-                class="btn-menu"
-                id="btn-acciones"
-                type="button"
-                aria-expanded="false"
-                aria-controls="menu-acciones"
-              >
-                ⋯ Más
-              </button>
-              <div class="menu-acciones__lista" id="menu-acciones" hidden>
-                <button id="btn-pdf" type="button">Exportar reporte PDF</button>
-                <button id="btn-png" type="button">Descargar gráfico PNG</button>
-                <button id="btn-reiniciar-casa" class="peligro" type="button">
-                  Reiniciar casa
+            <div class="diagnostico__pie">
+              <p class="pista">
+                Los datos se guardan en tu navegador. Nada sale de este dispositivo.
+              </p>
+              <div class="acciones-diag">
+                <button class="btn-sim btn-sim--sec" id="btn-pdf" type="button">
+                  <svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <use href="#ico-documento" />
+                  </svg>
+                  Reporte PDF
+                </button>
+                <button class="btn-sim btn-sim--sec" id="btn-png" type="button">
+                  <svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <use href="#ico-imagen" />
+                  </svg>
+                  Gráfico PNG
                 </button>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </section>
 
       <!-- Vista 2: simulador en tiempo real -->
@@ -228,10 +394,16 @@
                   </select>
                 </label>
                 <button class="btn-sim btn-sim--principal" id="sim-play" type="button">
-                  ▶ Iniciar
+                  <svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <use href="#ico-play" id="sim-play-icono" />
+                  </svg>
+                  <span id="sim-play-texto">Iniciar</span>
                 </button>
-                <button class="btn-sim btn-sim--sec" id="sim-reset" type="button">
-                  ↺ Reiniciar
+                <button class="btn-sim btn-sim--funcion" id="sim-reset" type="button">
+                  <svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <use href="#ico-reiniciar" />
+                  </svg>
+                  Reiniciar
                 </button>
                 <button class="btn-sim btn-sim--finalizar" id="sim-finalizar" type="button" hidden>
                   Finalizar
@@ -244,11 +416,16 @@
             <div class="sim__tanque-col">
               <div class="tanque tanque--sim" id="sim-tanque">
                 <div class="agua" id="sim-agua"></div>
+                <div class="tanque__entrada" aria-hidden="true">
+                  <span class="tanque__tubo"></span>
+                  <span class="tanque__chorro"></span>
+                </div>
                 <div class="zona-riesgo"></div>
                 <div class="tanque__marcas" aria-hidden="true"></div>
                 <div class="marca-oms marca-limite">
                   <span>20 %</span>
                 </div>
+                <span class="tanque__pildora" id="sim-pildora-entrada" hidden>Corte de agua</span>
                 <div class="tanque__texto">
                   <span id="sim-pct">100%</span>
                 </div>
@@ -271,61 +448,12 @@
                 <div class="sim__banda-fila">
                   <div class="sim__seg">
                     <span class="sim__etiqueta" id="sim-suministro-titulo">Suministro</span>
-                    <div class="sim__modos" role="group" aria-label="Modo de suministro de agua">
-                      <button
-                        type="button"
-                        class="modo-suministro activo"
-                        data-modo-suministro="normal"
-                        aria-pressed="true"
-                      >
-                        Normal
-                        <small>Todo el día</small>
-                      </button>
-                      <button
-                        type="button"
-                        class="modo-suministro"
-                        data-modo-suministro="tandeo"
-                        aria-pressed="false"
-                      >
-                        Tandeo
-                        <small>06–10 · 18–22</small>
-                      </button>
-                      <button
-                        type="button"
-                        class="modo-suministro"
-                        data-modo-suministro="corte"
-                        aria-pressed="false"
-                      >
-                        Corte
-                        <small>Sin entrada</small>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="sim__seg">
-                    <div class="sim__control-cab">
-                      <label class="sim__switch">
-                        <input type="checkbox" id="sim-bomba-activa" checked />
-                        <span id="sim-bomba-titulo">Bomba automática</span>
-                      </label>
-                      <button
-                        type="button"
-                        class="sim__ayuda-btn"
-                        id="sim-bomba-ayuda"
-                        data-nota="sim-bomba-nota"
-                        aria-expanded="false"
-                        aria-controls="sim-bomba-nota"
-                        aria-label="Cómo funciona la bomba del tinaco"
-                      >
-                        ?
-                      </button>
-                    </div>
-                    <strong
-                      class="sim__bomba-estado"
-                      id="sim-bomba-estado"
-                      role="status"
-                      aria-live="polite"
-                      >Apagada</strong
+                    <label class="sim__switch">
+                      <input type="checkbox" id="sim-cortes-activo" checked />
+                      <span>Cortes de agua</span>
+                    </label>
+                    <small class="sim__cortes-nota"
+                      >Madrugada 00–05 · un corte de 3 h cada 2 días</small
                     >
                   </div>
 
@@ -339,12 +467,19 @@
                         type="button"
                         class="sim__ayuda-btn"
                         id="sim-fugas-ayuda"
-                        data-nota="sim-fugas-nota"
+                        data-nota="fugas"
                         aria-expanded="false"
-                        aria-controls="sim-fugas-nota"
+                        aria-controls="sim-nota"
                         aria-label="Cómo funcionan las fugas sorpresa"
                       >
-                        ?
+                        <svg
+                          class="ico ico--xs"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                          focusable="false"
+                        >
+                          <use href="#ico-ayuda" />
+                        </svg>
                       </button>
                     </div>
                   </div>
@@ -352,43 +487,18 @@
 
                 <p class="sim__franja" id="sim-m-franja">Tiempo simulado</p>
 
-                <p class="sim__control-nota" id="sim-bomba-nota" hidden>
-                  La bomba toma agua de la red a 15 L/min: arranca cuando el tinaco baja al 20 % y
-                  se detiene al llenarse. Si la apagas, el tinaco solo se llena con la presión de la
-                  red.
-                </p>
-                <p class="sim__control-nota" id="sim-fugas-nota" hidden>
-                  Al activarlas, la simulación esconde una o dos fugas en aparatos al azar. No
-                  gotean desde el inicio: cada una empieza a su hora, a mitad de la corrida.
-                  Delátalas cuando el sensor cambie a «Anómalo» y revísalas en el resumen final.
-                </p>
+                <p class="sim__nota" id="sim-nota" role="note" hidden></p>
               </section>
 
               <div class="alerta" id="sim-alerta" role="status" aria-live="polite" hidden></div>
 
-              <div class="sim__aviso-vacio" id="sim-aviso-vacio" role="alert" hidden>
-                <strong>Tanque vacío. Sin agua en la vivienda.</strong>
-                <p id="sim-aviso-texto">
-                  Si hay suministro, enciende la bomba. También puedes seguir el tiempo sin agua
-                  para observar el corte.
-                </p>
-                <div class="sim__aviso-acciones">
-                  <button class="btn-sim btn-sim--principal" id="sim-encender-bomba" type="button">
-                    Activar bomba
-                  </button>
-                  <button class="btn-sim btn-sim--sec" id="sim-seguir-sin-agua" type="button">
-                    Seguir sin agua
-                  </button>
-                </div>
-              </div>
-
-              <section class="bitacora" aria-labelledby="bitacora-titulo">
-                <div class="bitacora__cab">
+              <details class="bitacora" id="bitacora">
+                <summary>
                   <h3 id="bitacora-titulo">Bitácora de la corrida</h3>
                   <span class="bitacora__vacio" id="bitacora-vacio">Sin eventos todavía</span>
-                </div>
+                </summary>
                 <ol class="bitacora__lista" id="bitacora-lista" aria-live="polite"></ol>
-              </section>
+              </details>
 
               <details class="sim__detalles">
                 <summary>Ver detalles de la simulación</summary>
@@ -430,9 +540,12 @@
     >
       <form class="modal__caja onboarding__caja" id="onboarding-form" novalidate>
         <span class="onboarding__eyebrow">El detective del agua</span>
-        <h3 class="modal__titulo" id="onboarding-titulo">Empecemos por tu casa</h3>
+        <h2 class="modal__titulo" id="onboarding-titulo">Empecemos por tu casa</h2>
         <p class="onboarding__desc" id="onboarding-desc">
           Elige cómo es tu vivienda. Entras directo, sin configurar nada más.
+        </p>
+        <p class="onboarding__aviso" id="onboarding-aviso" hidden>
+          Elegir una vivienda reemplaza la que tienes ahora: se borran el plano y la simulación.
         </p>
 
         <fieldset class="onboarding__perfiles" id="onb-perfiles">
@@ -443,22 +556,102 @@
           <div class="onboarding__opciones">
             <button type="button" class="perfil-opcion" data-perfil="bajo">
               <span class="perfil-opcion__caja">
+                <!-- Ilustración dibujada a mano: la app debe funcionar sin
+                     conexión, así que no hay imágenes raster externas. -->
+                <svg
+                  class="perfil-opcion__figura"
+                  viewBox="0 0 320 120"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <g class="perfil-opcion__trazo">
+                    <path class="fig-suelo" d="M112 104h96" />
+                    <rect x="124" y="58" width="72" height="46" rx="2" />
+                    <path d="M121 53h78v5" />
+                    <rect x="148" y="84" width="18" height="20" rx="1.5" />
+                    <rect x="170" y="72" width="16" height="14" rx="1.5" />
+                    <g class="fig-tanque">
+                      <rect x="138" y="30" width="20" height="23" rx="3" />
+                      <path d="M136 30h24" />
+                      <path d="M138 40h20" />
+                    </g>
+                  </g>
+                </svg>
                 <strong>Compacta</strong>
-                <small>1 baño, cocina y lo esencial. Partimos de 2 personas.</small>
+                <small>1 baño, cocina, lavandería y lo esencial.</small>
+                <span class="perfil-opcion__datos">
+                  <span><b>2</b> personas</span>
+                  <span><b>300 L</b> de tinaco</span>
+                </span>
               </span>
             </button>
             <button type="button" class="perfil-opcion" data-perfil="medio">
               <span class="perfil-opcion__caja">
+                <svg
+                  class="perfil-opcion__figura"
+                  viewBox="0 0 320 120"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <g class="perfil-opcion__trazo">
+                    <path class="fig-suelo" d="M84 104h160" />
+                    <rect x="92" y="50" width="78" height="54" rx="2" />
+                    <path d="M89 45h84v5" />
+                    <rect x="170" y="66" width="62" height="38" rx="2" />
+                    <path d="M167 61h68v5" />
+                    <rect x="196" y="80" width="18" height="24" rx="1.5" />
+                    <rect x="108" y="66" width="16" height="14" rx="1.5" />
+                    <rect x="136" y="66" width="16" height="14" rx="1.5" />
+                    <g class="fig-tanque">
+                      <rect x="110" y="22" width="20" height="23" rx="3" />
+                      <path d="M108 22h24" />
+                      <path d="M110 32h20" />
+                    </g>
+                  </g>
+                </svg>
                 <strong>Estándar</strong>
-                <small>2 baños, cocina y lavandería. Partimos de 4 personas.</small>
+                <small>2 baños, cocina y lavandería.</small>
+                <span class="perfil-opcion__datos">
+                  <span><b>4</b> personas</span>
+                  <span><b>750 L</b> de tinaco</span>
+                </span>
               </span>
             </button>
             <button type="button" class="perfil-opcion" data-perfil="alto">
               <span class="perfil-opcion__caja">
-                <strong>Amplia</strong>
-                <small
-                  >3 baños, cocina equipada, lavandería y jardín. Partimos de 5 personas.</small
+                <svg
+                  class="perfil-opcion__figura"
+                  viewBox="0 0 320 120"
+                  aria-hidden="true"
+                  focusable="false"
                 >
+                  <g class="perfil-opcion__trazo">
+                    <path class="fig-suelo" d="M66 104h218" />
+                    <rect x="76" y="42" width="74" height="62" rx="2" />
+                    <path d="M73 37h80v5" />
+                    <rect x="90" y="54" width="16" height="14" rx="1.5" />
+                    <rect x="118" y="54" width="16" height="14" rx="1.5" />
+                    <rect x="90" y="78" width="16" height="14" rx="1.5" />
+                    <rect x="150" y="58" width="84" height="46" rx="2" />
+                    <path d="M147 53h90v5" />
+                    <rect x="164" y="82" width="18" height="22" rx="1.5" />
+                    <rect x="196" y="70" width="16" height="14" rx="1.5" />
+                    <rect x="222" y="70" width="16" height="14" rx="1.5" />
+                    <path class="fig-jardin" d="M242 104a9 9 0 0 1 18 0" />
+                    <path class="fig-jardin" d="M264 104a7 7 0 0 1 14 0" />
+                    <g class="fig-tanque">
+                      <rect x="96" y="14" width="22" height="23" rx="3" />
+                      <path d="M94 14h26" />
+                      <path d="M96 24h22" />
+                    </g>
+                  </g>
+                </svg>
+                <strong>Amplia</strong>
+                <small>3 baños, cocina equipada, lavandería y jardín.</small>
+                <span class="perfil-opcion__datos">
+                  <span><b>5</b> personas</span>
+                  <span><b>1100 L</b> de tinaco</span>
+                </span>
               </span>
             </button>
           </div>
@@ -477,9 +670,12 @@
     >
       <div class="modal__caja modal__caja--resumen">
         <button type="button" id="modal-resumen-cerrar" class="btn-sim btn-sim--sec">
-          ✕ Cerrar
+          <svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <use href="#ico-cerrar" />
+          </svg>
+          Cerrar
         </button>
-        <h3 class="modal__titulo" id="modal-resumen-titulo">Simulación finalizada</h3>
+        <h2 class="modal__titulo" id="modal-resumen-titulo">Simulación finalizada</h2>
         <div class="resumen__kpis">
           <div class="resumen__kpi">
             <strong id="resumen-agua-consumida">0 L</strong>
@@ -495,7 +691,7 @@
           </div>
         </div>
         <div class="resumen__detalle resumen__fugas-bloque">
-          <h4 class="resumen__subtitulo">Fugas de la sesión</h4>
+          <h3 class="resumen__subtitulo">Fugas de la sesión</h3>
           <p class="resumen__fugas-resumen" id="resumen-fugas-resumen">
             Sin fugas sorpresa en esta corrida.
           </p>
@@ -505,7 +701,7 @@
           </button>
         </div>
         <div class="resumen__detalle">
-          <h4 class="resumen__subtitulo">Consumo por habitación</h4>
+          <h3 class="resumen__subtitulo">Consumo por habitación</h3>
           <div id="resumen-lista-habitaciones"></div>
         </div>
         <div class="resumen__acciones">
@@ -529,7 +725,7 @@
         <div class="ayuda__cab">
           <div>
             <p class="eyebrow">Guía rápida</p>
-            <h3 class="modal__titulo" id="ayuda-titulo">Cómo usar SmartGota</h3>
+            <h2 class="modal__titulo" id="ayuda-titulo">Cómo usar SmartGota</h2>
           </div>
           <button
             type="button"
@@ -537,43 +733,55 @@
             id="modal-ayuda-cerrar"
             aria-label="Cerrar la guía"
           >
-            ✕
+            <svg class="ico ico--sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <use href="#ico-cerrar" />
+            </svg>
           </button>
         </div>
         <div class="ayuda">
           <section>
-            <h4>1. Explora tu casa</h4>
+            <h3>1. Explora tu casa</h3>
             <p>
               El plano ya viene armado según el tamaño de vivienda que elegiste. Arriba hay un
-              catálogo informativo de aparatos; toca uno en el plano para cambiar su eficiencia
-              (estándar, ecológico o antiguo).
+              catálogo informativo de aparatos y cada uno muestra en el plano su gasto estimado al
+              día. La composición de la casa no se edita.
             </p>
           </section>
           <section>
-            <h4>2. Analiza el consumo</h4>
+            <h3>2. Analiza el consumo</h3>
             <p>
               El diagnóstico desglosa el gasto por tipo de dispositivo y muestra qué porcentaje del
               tinaco representa tu consumo diario.
             </p>
           </section>
           <section>
-            <h4>3. Simula el día y caza fugas</h4>
+            <h3>3. Simula el día y caza fugas</h3>
             <p>
-              En el simulador eliges el suministro y controlas la bomba. La bitácora en vivo anota
-              lo que ocurre, y las fugas sorpresa aparecen a mitad del día: revisa los sensores para
+              En el simulador ves el suministro entrar al tinaco. La bitácora en vivo anota lo que
+              ocurre, y las fugas sorpresa aparecen a mitad del día: revisa los sensores para
               encontrarlas.
             </p>
           </section>
           <section>
-            <h4>Bomba y suministro</h4>
+            <h3>Suministro y tinaco</h3>
             <p>
-              Normal: presión baja todo el día. Tandeo: agua solo de 06–10 h y 18–22 h. Corte: sin
-              entrada. La bomba toma 15 L/min de la red; en automático arranca al 20 % y se detiene
-              al 100 %.
+              La red entrega 6 L/min de 00:00 a 05:00, cuando la casa casi no consume, y el resto
+              del día una presión baja con el 70 % de la demanda diaria: el tinaco baja durante el
+              día y se recupera de madrugada. Cada dos días hay un corte de 3 horas entre las 08:00
+              y las 20:00; mientras dura, el tinaco se pinta ámbar y pasa a ser la reserva de la
+              casa.
             </p>
           </section>
           <section>
-            <h4>Sensores y tiempos</h4>
+            <h3>El agua y el tinaco</h3>
+            <p>
+              El agua de la red llega con sales y minerales disueltos. Con el tiempo se asientan en
+              el fondo del tinaco como sedimento, así que conviene revisarlo y lavarlo de vez en
+              cuando. Este simulador mide volumen, no calidad del agua.
+            </p>
+          </section>
+          <section>
+            <h3>Sensores y tiempos</h3>
             <p>
               Los sensores reparten el consumo real por habitación. Los tiempos de “se llena” o “se
               vacía” son de la vivienda simulada, no del reloj real.
@@ -583,16 +791,6 @@
         <button type="button" class="btn-sim btn-sim--principal" id="modal-ayuda-ok">
           Entendido
         </button>
-      </div>
-    </div>
-
-    <div class="editor" id="editor" hidden tabindex="-1">
-      <b id="ed-nombre"></b>
-      <small class="editor__nota" id="ed-nota"></small>
-      <p id="ed-calculo" aria-live="polite"></p>
-      <div id="ed-grupo-modo" hidden>
-        <label for="ed-modo">Eficiencia del dispositivo</label>
-        <select id="ed-modo"></select>
       </div>
     </div>
 
@@ -606,8 +804,8 @@
       defer
       onerror="window.__cdnError('jspdf')"
     ></script>
-    <script src="dominio.js?v=51" defer></script>
-    <script src="app.js?v=51" defer></script>
+    <script src="dominio.js?v=68" defer></script>
+    <script src="app.js?v=68" defer></script>
 
     <div
       class="modal"
@@ -618,7 +816,7 @@
       aria-labelledby="modal-titulo"
     >
       <form class="modal__caja" id="modal-form" method="dialog">
-        <h3 class="modal__titulo" id="modal-titulo"></h3>
+        <h2 class="modal__titulo" id="modal-titulo"></h2>
         <p class="modal__msg" id="modal-msg" hidden></p>
         <input type="text" id="modal-input" maxlength="28" autocomplete="off" hidden />
         <div class="modal__acciones">
@@ -637,7 +835,7 @@
       aria-labelledby="modal-info-titulo"
     >
       <div class="modal__caja">
-        <h3 class="modal__titulo" id="modal-info-titulo"></h3>
+        <h2 class="modal__titulo" id="modal-info-titulo"></h2>
         <p class="modal__msg" id="modal-info-flujo"></p>
         <p class="modal__msg" id="modal-info-msg"></p>
         <div class="modal__acciones">

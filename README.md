@@ -16,7 +16,7 @@ Internet solo es necesario para el gráfico (Chart.js) y la exportación PDF (js
 
 - Crear una vivienda inicial eligiendo el tamaño (Compacta, Estándar o Amplia): la casa nace con personas y capacidad del tinaco ya preconfiguradas y fijas (no se editan).
 - Ver el plano de la casa (inmutable): pisos, habitaciones y dispositivos vienen de la plantilla según el tamaño elegido.
-- Consultar el catálogo de dispositivos (ducha, inodoro, lavabo, tina, lavadora, lavavajillas, filtro, grifo, aire lavado y fugas) y cambiar la eficiencia de cada aparato del plano; el consumo se estima según el tamaño de la vivienda, el tipo de habitación y la eficiencia.
+- Consultar el catálogo de dispositivos (ducha, inodoro, lavabo, tina, lavadora, lavavajillas, filtro, grifo, aire lavado y fugas) y ver en el plano el consumo estimado de cada aparato; el consumo se estima según el tamaño de la vivienda y el tipo de habitación.
 - Revisar el consumo por tipo de dispositivo, el mayor gasto y el porcentaje del tinaco.
 - Simular el suministro de agua y el tinaco en tiempo real.
 - Revisar sensores virtuales de flujo por habitación.
@@ -40,6 +40,7 @@ La recomendación principal aparece plegada para no saturar la pantalla. El bot�
 - **Suministro:** `Normal` (presión baja casi todo el día), `Tandeo` (agua solo de 06–10 h y 18–22 h) o `Corte` (sin entrada). Suministro, bomba y fugas viven en una sola banda de control, con el estado del agua al pie.
 - **Bomba del tinaco:** un interruptor. Encendida, arranca sola al 20 % y se detiene al llenar; toma 15 L/min de la red. Apagada, el tinaco solo recibe la presión del suministro. El botón “?” explica el ciclo.
 - **Tanque:** vaso con marcas de nivel cada 25 % y la línea del 20 %, con las tres cifras (nivel, consumo y entrada) pegadas debajo. La simulación se puede iniciar, pausar, reiniciar o finalizar.
+- **Ahorro con el tinaco bajo:** con el nivel al 20 % o menos los aparatos consumen la mitad (vuelve a la normalidad al superar el 25 %). Las fugas no se reducen: una fuga sigue perdiendo su caudal completo. La alerta y la bitácora explican el cambio.
 - **Velocidad:** de 1× a 21600× para recorrer el día simulado.
 - **Fugas sorpresa:** un interruptor en el simulador esconde una o dos fugas en aparatos al azar; el botón “?” explica cómo funciona y apagarlo deja una corrida limpia.
 - **Hallazgo:** la primera anomalía abre los sensores y marca el aparato en el plano; el resumen de sesión lista la fuga, lo perdido y un botón para verla.
@@ -49,12 +50,12 @@ La recomendación principal aparece plegada para no saturar la pantalla. El bot�
 
 ## Onboarding y plantillas
 
-El onboarding es de selección directa: muestra solo tres tarjetas de vivienda (Compacta, Estándar, Amplia) y, al elegir una, crea la casa al instante con valores preconfigurados:
+El onboarding es de selección directa: muestra solo tres tarjetas de vivienda (Compacta, Estándar, Amplia), cada una con una ilustración de la casa y del tinaco, y al elegir una crea la casa al instante con valores preconfigurados:
 
 - **Personas:** 2, 4 o 5 según el tamaño.
 - **Capacidad del tinaco:** según la cantidad de personas.
 
-La casa inicial se genera con una plantilla. El tamaño define tanto la vivienda inicial como los promedios de consumo: minutos de ducha, descargas del inodoro, cargas de lavadora o lavavajillas, etc. No se piden esos valores por dispositivo. Al tocar un dispositivo se abre una ficha con el cálculo estimado y un selector de eficiencia. Si cambias las personas, los usos se recalculan: cada uso (ducha, inodoro, lavabo de baño) es una sola cuota para la casa que se reparte entre los aparatos según el rol de su baño (principal, secundario o medio); el lavabo de cocina es un uso aparte del hogar.
+La casa inicial se genera con una plantilla. El tamaño define tanto la vivienda inicial como los promedios de consumo: minutos de ducha, descargas del inodoro, cargas de lavadora o lavavajillas, etc. No se piden esos valores por dispositivo y la eficiencia no se edita: el plano solo muestra la cifra estimada de cada aparato. Si cambias las personas, los usos se recalculan: cada uso (ducha, inodoro, lavabo de baño) es una sola cuota para la casa que se reparte entre los aparatos según el rol de su baño (principal, secundario o medio); el lavabo de cocina es un uso aparte del hogar.
 
 Cada habitación guarda su tipo (recámara, baño, cocina, sala, comedor, lavandería, patio, estudio) y su rol (principal, secundario o medio en los baños). El nombre es solo una etiqueta: el cálculo del consumo depende del tipo y del rol, no de cómo se llame la habitación.
 
@@ -101,17 +102,18 @@ npm run format         # formatear app.js, dominio.js, styles.css e index.html
 npm run format:check   # verificar formateo
 ```
 
-Si un cambio de CSS o JavaScript no se ve en el navegador, actualiza el parámetro `?v=49` de los assets o limpia la caché.
+Si un cambio de CSS o JavaScript no se ve en el navegador, actualiza el parámetro `?v=62` de los assets o limpia la caché.
 
 ## Verificación manual
 
 - Completar el onboarding y comprobar que se crea la casa inicial.
 - Verificar que personas y tinaco aparecen fijos según el tamaño elegido (2/4/5 personas · 450/750/1100 L) y que no hay inputs editables ni indicador de recibo.
 - Revisar el diagnóstico: dona y lista de consumo por tipo de dispositivo, sin pestañas.
-- Revisar el catálogo de dispositivos (icono, flujo base y descripción) y tocar un aparato del plano para abrir su ficha y cambiar la eficiencia.
+- Revisar el catálogo de dispositivos (icono, flujo base y descripción) y comprobar que un clic sobre un aparato del plano no abre ficha ni selector: solo se lee su cifra.
 - Revisar el menú **Más** con teclado y ratón, y la guía de uso con Escape.
 - Probar los modos de suministro, el interruptor de la bomba y el tanque vacío.
 - Comprobar que la suma de los sensores por habitación coincide con el consumo real dentro del redondeo. Cada fila muestra el estado en una píldora corta (`Normal`, `Pico`, `Anómalo`) y el número usa el mismo formato que el resto (`1,133 L`).
+- Bajar el tinaco al 20 % o menos y comprobar que el consumo se reduce a la mitad, que la alerta lo explica y que la bitácora anota el cambio una sola vez; al recuperar el 25 % vuelve el consumo normal. Las fugas y el agua perdida no cambian.
 - Recargar la página y confirmar que se conserva la casa y la simulación.
 - Usar **Reiniciar casa**, confirmar y verificar que vuelve el onboarding sin recrear la casa anterior.
 - Revisar 360, 500, 768, 1244 y 1440 px sin desbordamiento horizontal.

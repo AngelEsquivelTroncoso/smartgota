@@ -12,9 +12,23 @@ const {
   repartirCuota,
   generarCasoFuga,
   normalizarCasoFuga,
+  fugaEnCurso,
+  inicioFugaDesde,
   flujoDe,
   litrosConFlujo,
   normalizarPerfil,
+  evaluarAhorro,
+  UMBRAL_AHORRO,
+  FACTOR_AHORRO,
+  ENTRADA_MADRUGADA_LMIN,
+  ENTREGA_DIA_FRACCION,
+  CORTE_GRAVE_HORAS,
+  DURACIONES_CORTE,
+  metaNoche,
+  enMadrugada,
+  corteDelDia,
+  enCorte,
+  flujoDiaLps,
 } = require('./dominio.js');
 
 const banoPrincipal = { tipo: 'bano', rol: 'principal' };
@@ -196,6 +210,46 @@ test('cada aparato elegible puede salir sorteado', () => {
   assert.equal(vistos.size, ids.length);
 });
 
+/* --- la fuga solo corre con el interruptor encendido ------------------ */
+
+test('con el interruptor apagado la fuga no corre aunque sea su hora', () => {
+  assert.equal(fugaEnCurso(false, 8 * 3600, 20 * 3600), false);
+});
+
+test('la fuga espera a su hora', () => {
+  assert.equal(fugaEnCurso(true, 12 * 3600, 12 * 3600 - 1), false);
+  assert.equal(fugaEnCurso(true, 12 * 3600, 12 * 3600), true);
+});
+
+test('sin hora conocida la fuga cuenta como iniciada solo si está activa', () => {
+  assert.equal(fugaEnCurso(true, undefined, 0), true);
+  assert.equal(fugaEnCurso(false, undefined, 0), false);
+});
+
+test('el inicio absoluto sobrevive al cambio de día', () => {
+  assert.equal(fugaEnCurso(true, 86400 + 18 * 3600, 86400 + 8 * 3600), false);
+  assert.equal(fugaEnCurso(true, 86400 + 18 * 3600, 86400 + 18 * 3600), true);
+});
+
+/* --- el caso se ancla al momento de encenderlo ------------------------ */
+
+test('encenderla de noche programa la fuga para el día siguiente', () => {
+  assert.equal(inicioFugaDesde(8, 20 * 3600), 86400 + 8 * 3600);
+});
+
+test('encenderla de madrugada la deja para esa misma mañana', () => {
+  assert.equal(inicioFugaDesde(8, 7 * 3600), 8 * 3600);
+  assert.equal(inicioFugaDesde(18, 5 * 3600), 18 * 3600);
+});
+
+test('si el ancla cae justo en la hora del caso, arranca en el acto', () => {
+  assert.equal(inicioFugaDesde(8, 8 * 3600), 8 * 3600);
+});
+
+test('sin hora de caso arranca en el ancla', () => {
+  assert.equal(inicioFugaDesde(undefined, 12345), 12345);
+});
+
 /* --- normalización de entradas --------------------------------------- */
 
 test('los códigos inválidos vuelven al valor por defecto', () => {
@@ -211,6 +265,35 @@ test('el perfil antiguo se traduce al nuevo sin romper las tablas', () => {
   assert.equal(normalizarPerfil('amplia'), 'alto');
   assert.equal(normalizarPerfil('cualquiera'), 'bajo');
   assert.ok(PROMEDIOS[normalizarPerfil('familiar')]);
+});
+
+/* --- ahorro con el tinaco al 20 % ------------------------------------ */
+
+test('el ahorro se activa al 20 % del tinaco y deja el consumo a la mitad', () => {
+  assert.equal(UMBRAL_AHORRO, 0.2);
+  assert.equal(FACTOR_AHORRO, 0.5);
+  assert.deepEqual(evaluarAhorro(90, 450), { activo: true, factor: 0.5 });
+});
+
+test('por encima del 20 % el consumo vuelve a ser normal', () => {
+  assert.deepEqual(evaluarAhorro(91, 450), { activo: false, factor: 1 });
+  assert.deepEqual(evaluarAhorro(450, 450), { activo: false, factor: 1 });
+});
+
+test('una vez activo, el ahorro aguanta hasta superar el 25 %', () => {
+  assert.equal(evaluarAhorro(100, 450, true).factor, 0.5, '22 % con ahorro previo');
+  assert.equal(evaluarAhorro(112, 450, true).factor, 0.5, '24,9 % con ahorro previo');
+  assert.equal(evaluarAhorro(113, 450, true).factor, 1, '25,1 % con ahorro previo');
+});
+
+test('sin ahorro previo, el 22 % no activa nada', () => {
+  assert.equal(evaluarAhorro(100, 450, false).factor, 1);
+});
+
+test('una capacidad inválida o un nivel desconocido no activan el ahorro', () => {
+  assert.deepEqual(evaluarAhorro(0, 0), { activo: false, factor: 1 });
+  assert.deepEqual(evaluarAhorro(null, 450), { activo: false, factor: 1 });
+  assert.deepEqual(evaluarAhorro(90, 'x'), { activo: false, factor: 1 });
 });
 
 /* --- coherencia del catálogo ----------------------------------------- */
@@ -230,4 +313,109 @@ test('todo modo declarado tiene flujo numérico positivo', () => {
       assert.ok(def.flujo > 0, `${tipo}.${modo} sin flujo válido`);
     }
   }
+});
+
+/* --- suministro: madrugada, día proporcional y cortes ---------------- */
+
+test('la madrugada cubre de 00:00 a 04:59', () => {
+  assert.equal(enMadrugada(0), true);
+  assert.equal(enMadrugada(4), true);
+  assert.equal(enMadrugada(5), false);
+  assert.equal(enMadrugada(23), false);
+  assert.ok(ENTRADA_MADRUGADA_LMIN > flujoDiaLps(1000) * 60);
+});
+
+test('la meta de la noche es determinista y cae entre 0 y 1', () => {
+  for (let dia = 0; dia < 200; dia += 1) {
+    const a = metaNoche(dia, 7314);
+    assert.equal(a, metaNoche(dia, 7314));
+    assert.ok(a >= 0 && a <= 1, `meta fuera de rango: ${a}`);
+  }
+});
+
+test('una de cada dieciséis noches se queda sin agua', () => {
+  let secas = 0;
+  let seguidas = 0;
+  for (let dia = 1; dia < 700; dia += 1) {
+    if (metaNoche(dia, 7314) === 0) {
+      secas += 1;
+      if (metaNoche(dia - 1, 7314) === 0) seguidas += 1;
+    }
+  }
+  assert.ok(secas >= 30 && secas <= 70, `noches secas: ${secas}`);
+  assert.ok(seguidas >= 1, 'debe haber al menos una sequía de dos noches');
+});
+
+test('la noche llena más veces que a medias', () => {
+  let suma = 0;
+  for (let dia = 0; dia < 700; dia += 1) suma += metaNoche(dia, 4821);
+  assert.ok(suma / 700 > 0.78, `media: ${(suma / 700).toFixed(2)}`);
+});
+
+test('los cortes se sortean por semana, con semanas limpias', () => {
+  let semanasSinCorte = 0;
+  for (let semana = 0; semana < 30; semana += 1) {
+    const cortes = [];
+    for (let d = 0; d < 7; d += 1) {
+      const c = corteDelDia(semana * 7 + d, 7314);
+      if (c) cortes.push(c);
+    }
+    assert.ok(cortes.length <= 3, `semana ${semana}: ${cortes.length} cortes`);
+    if (cortes.length === 0) semanasSinCorte += 1;
+  }
+  assert.ok(semanasSinCorte >= 5, `semanas sin corte: ${semanasSinCorte}`);
+});
+
+test('el corte es determinista, dura 2–12 h y el grave 26–36 h', () => {
+  let graves = 0;
+  for (let dia = 0; dia < 400; dia += 1) {
+    const a = corteDelDia(dia, 7314);
+    assert.deepEqual(a, corteDelDia(dia, 7314));
+    if (!a) continue;
+    const horas = a.hasta - a.desde;
+    if (a.grave) {
+      graves += 1;
+      assert.ok(horas >= 26 && horas <= 36, `grave de ${horas} h`);
+      assert.ok(a.desde >= 18 && a.desde <= 20);
+    } else {
+      assert.ok(DURACIONES_CORTE.includes(horas), `duración rara: ${horas}`);
+    }
+  }
+  assert.ok(graves >= 1, 'en 400 días debe caer algún corte grave');
+});
+
+test('enCorte respeta el inicio y el final, y el grave cruza la medianoche', () => {
+  for (let dia = 0; dia < 400; dia += 1) {
+    const c = corteDelDia(dia, 7314);
+    if (!c) continue;
+    assert.equal(enCorte(dia * 24 + c.desde, 7314), true);
+    assert.equal(enCorte(dia * 24 + c.hasta, 7314), false);
+    if (c.grave) {
+      assert.ok(c.hasta > 24, 'el grave debe pasar la medianoche');
+      assert.equal(enCorte(dia * 24 + 23.5, 7314), true);
+      assert.equal(enCorte((dia + 1) * 24 + 1, 7314), true);
+    }
+  }
+});
+
+test('la semilla cambia el corte pero no su forma', () => {
+  const distinto = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].filter(
+    (dia) => JSON.stringify(corteDelDia(dia, 100)) !== JSON.stringify(corteDelDia(dia, 200))
+  );
+  assert.ok(distinto.length > 0);
+});
+
+test('el día entrega una fracción de la demanda que supera el ahorro', () => {
+  for (const humanoDia of [184, 448, 935]) {
+    const lps = flujoDiaLps(humanoDia);
+    assert.ok(lps > (FACTOR_AHORRO * humanoDia) / 86400, `estancado con ${humanoDia} L/día`);
+    assert.ok(lps < humanoDia / 86400);
+    assert.ok(Math.abs(lps * 86400 - humanoDia * ENTREGA_DIA_FRACCION) < 1e-9);
+  }
+});
+
+test('sin demanda de día no entra agua de día', () => {
+  assert.equal(flujoDiaLps(0), 0);
+  assert.equal(flujoDiaLps(-10), 0);
+  assert.equal(flujoDiaLps(NaN), 0);
 });
